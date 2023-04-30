@@ -35,6 +35,7 @@ module moddump
  real :: beta,    &  ! penetration factor
          Mh1,     &  ! BH mass1
          ms,      &  ! stellar mass
+         msec,    &  ! secondary body mass
          rs,      &  ! stellar radius
          theta,   &  ! stellar tilting along x
          phi,     &  ! stellar tilting along y
@@ -47,7 +48,7 @@ module moddump
          ecc_binary !eccentricity of the black hole
 
  integer, public :: iorigin  ! which black hole to use for the origin
- logical,public :: use_binary,use_sink
+ logical,public :: use_binary,use_sink,use_binary_stars
 
 contains
 
@@ -89,6 +90,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  beta  = 1.                  ! penetration factor
  Mh1   = 1.e6*solarm/umass   ! BH mass
  ms    = 1.  *solarm/umass   ! stellar mass
+ msec  = 1.  *solarm/umass
  rs    = 1.  *solarr/udist   ! stellar radius
  theta = 0.                  ! stellar tilting along x
  phi   = 0.                  ! stellar tilting along y
@@ -111,6 +113,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  ! default parameters for binary (overwritten from .tdeparams file)
  use_binary = .false.
  use_sink = .false.
+ use_binary_stars = .false.
  iorigin = 0
 
  filename = 'tde'//'.tdeparams'                                ! moddump should really know about the output file prefix...
@@ -209,6 +212,16 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     xyzmh_ptmass(ihacc,nptmass) = accradius1
     xyzmh_ptmass(ihsoft,nptmass) = accradius1
     vxyz_ptmass(:,nptmass) = 0.
+ 
+ elseif (use_binary_stars) then
+    accradius1 = 2.
+    accradius2 = 2.
+    semimajoraxis_binary = 10.
+    ecc_binary = 1.
+    call set_binary(ms,msec,semimajoraxis_binary,ecc_binary, &
+                    accradius1,accradius2, &
+                    xyzmh_ptmass,vxyz_ptmass,nptmass,ierr) 
+    
  else
     ! single black hole in Newtonian gravity
     mass1          = m0
@@ -292,9 +305,12 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     write(*,'(a,Es12.5,a)') 'Separation betweent the two black holes = ', semimajoraxis_binary
  elseif (use_sink .and. .not.gr) then 
     write(*,'(a)') "Use Sink particle as BH = True"
+ elseif (use_binary_stars) then 
+    write(*,'(a)') "Use binary stars = True"
  else
     write(*,'(a)') "Use Binary BH = False"
  endif
+
 
  write(*,'(a)') "======================================================================"
 
@@ -326,6 +342,7 @@ subroutine write_setupfile(filename)
  if (.not. gr) then
     call write_inopt(use_binary, 'use binary', 'true/false', iunit)
     call write_inopt(use_sink, 'use sink', 'true/false', iunit)
+    call write_inopt(use_binary_stars, 'use binary stars', 'true/false', iunit)
     if (use_binary) then
        call write_inopt(iorigin,'iorigin','0 = COM of BBH, 1 = Sink 1, 2 = Sink 2', iunit)
        call write_inopt(Mh2,    'Mh2',    'mass of second black hole (code units)',iunit)
@@ -366,6 +383,7 @@ subroutine read_setupfile(filename,ierr)
  if (.not. gr) then
     call read_inopt(use_binary, 'use binary', db, errcount=nerr)
     call read_inopt(use_sink, 'use sink', db, errcount=nerr)
+    call read_inopt(use_binary_stars, 'use binary stars', db, errcount=nerr)
     if (use_binary) then
        call read_inopt(iorigin,'iorigin',db,min=0,max=2,errcount=nerr)
        call read_inopt(Mh2, 'Mh2',    db,min=0.,errcount=nerr)
