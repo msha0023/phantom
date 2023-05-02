@@ -106,10 +106,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  Mh2        = 1.e6*solarm/umass !setting mass of a second BH
  ecc_binary = 1.                !Eccentricity of the binary system
  m0 = Mh1
- print*,ecc_binary,"Ecc of binary",semimajoraxis_binary,"semimajoraxis binary"
- print*,"--------------"
- print*,m0,"m0",Mh1,"Mh1"
- print*,"--------------"
+ 
  ! default parameters for binary (overwritten from .tdeparams file)
  use_binary = .false.
  use_sink = .false.
@@ -126,7 +123,6 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  endif
  print*,"--------------------------------------------"
  print*,use_binary,"use_binary"
- print*,Mh1,"Mh1"
  print*,"--------------------------------------------"
  m0 = Mh1
  if (use_binary) then
@@ -139,7 +135,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
        m0 = Mh1 + Mh2
     end select
  endif
- print*,r0,"r0","----------------------"
+ 
  rt = (m0/ms)**(1./3.) * rs
  rp = rt/beta
  theta=theta*pi/180.0
@@ -204,6 +200,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     call set_binary(Mh1,Mh2,semimajoraxis_binary,ecc_binary, &
                     accradius1,accradius2, &
                     xyzmh_ptmass,vxyz_ptmass,nptmass,ierr)
+ ! This option allows the user to use a sink particle as black hole.
  elseif (use_sink) then
    ! single black hole in Newtonian gravity using a sink particle
     nptmass = nptmass + 1
@@ -294,7 +291,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  write(*,'(a,Es12.5,a)') ' Stellar mass        = ',ms,' code units'
  write(*,'(a,Es12.5,a)') ' Tilting along y     = ',theta,' degrees'
  write(*,'(a,Es12.5,a)') ' Eccentricity of stellar orbit      = ',ecc
- write(*,'(a,Es12.5,a)') 'Mass of BH =',m0
+ write(*,'(a,Es12.5,a)') ' Mass of BH          =',m0,' code units'
  write(*,'(a,Es12.5,a)') ' Inclination         = ',incline,' degrees'
  if (gr) then
     write(*,'(a,Es12.5,a)') ' Spin of black hole "a"       = ',a
