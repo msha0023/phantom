@@ -31,6 +31,9 @@ module moddump
 !   metric, options, orbits_data, part, physcon, prompting, setbinary,
 !   units, vectorutils
 !
+ use setstar, only:star_t
+ use dim,     only:gr
+
  implicit none
 
  real :: beta,    &  ! penetration factor
@@ -45,10 +48,13 @@ module moddump
          spin,    &  ! spin of black hole
          Mh2,     &  ! BH mass2
          semimajoraxis_binary, & !sepration
-         ecc_binary !eccentricity of the black hole
-
+         ecc_binary, & !eccentricity of the black hole    
+         semi_major_axis,          & ! semi-major axis of binary star system
+         ecc_binary_stars, & ! ecc of binary star system
+         ms2 ! mass of seconday object around the star
+ !character(len=20) :: semi_major_axis
  integer, public :: iorigin  ! which black hole to use for the origin
- logical,public :: use_binary,use_sink
+ logical,public :: use_binary,use_sink,use_binary_stars
 
 contains
 
@@ -57,7 +63,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  use externalforces, only:mass1
  use externalforces, only:accradius1,accradius1_hard
  use options,        only:iexternalforce,damp
- use dim,            only:gr
+ !use dim,            only:gr
  use prompting,      only:prompt
  use physcon,        only:pi,solarm,solarr
  use units,          only:umass,udist,get_c_code
@@ -71,12 +77,12 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  integer,  intent(inout) :: npartoftype(:)
  real,     intent(inout) :: massoftype(:)
  real,     intent(inout) :: xyzh(:,:),vxyzu(:,:)
- character(len=120)      :: filename
- integer                 :: i,ierr
- logical                 :: iexist
+ character(len=120)      :: filename,filename_binary
+ integer                 :: i,ierr,ierr_binary,file_unit
+ logical                 :: iexist,iexist_binary
  real                    :: Ltot(3)
  real                    :: rp,rt
- real                    :: x0,y0,vx0,vy0,vz0,alpha,z0
+ real                    :: x0,y0,vx0,vy0,vz0,alpha,z0,mb
  real                    :: x,z,vx,vz
  real                    :: c_light,m0
  real                    :: accradius2
@@ -95,6 +101,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  phi   = 0.                  ! stellar tilting along y
  ecc   = 1.                  ! eccentricity
  incline = 0.                ! inclination (in x-z plane)
+ ms2   = 1. *solarm/umass    ! secondary body mass
  semimajoraxis_binary = 1000.*solarr/udist   !separation distance
  if (.not. gr) then
     spin = 0.
@@ -112,8 +119,19 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  ! default parameters for binary (overwritten from .tdeparams file)
  use_binary = .false.
  use_sink = .false.
+ use_binary_stars = .false.
  iorigin = 0
-
+ 
+ filename_binary = 'sim'//'.setup'
+ inquire(file=filename_binary,exist=iexist_binary)
+ print*,"------------------------"
+ print*,"iexist_binary",iexist_binary
+ if (iexist_binary) print*,"Setting binary stars around SMBH"
+ if (iexist_binary) then
+   call read_binary_stars_setup(filename_binary,ierr_binary)
+   use_binary_stars = .true.
+ endif
+ print*,use_binary_stars,"use_binary_stars"
  filename = 'tde'//'.tdeparams'                                ! moddump should really know about the output file prefix...
  inquire(file=filename,exist=iexist)
  if (iexist) call read_setupfile(filename,ierr)
@@ -126,6 +144,9 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  print*,use_binary,"use_binary"
  print*,"--------------------------------------------"
  
+ filename_binary = 'sim.setup'
+ inquire(file=filename,exist=iexist_binary)
+
  m0 = Mh1
  if (use_binary) then
     select case(iorigin)
@@ -138,9 +159,23 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     end select
  endif
  
+ ! calculate rt and rp  
  rt = (m0/ms)**(1./3.) * rs
  rp = rt/beta
+
+ ! using Warren R. Brown 2015 for tidal radius of binary star system
+ if (use_binary_stars) then 
+   ! mass of binary star system
+   mb = ms + ms2
+   rt = semi_major_axis*(3*m0/mb)**(1./3.)
+   rp = rt/beta
+ endif 
+
+ ! recalculate r0
+ r0 = 10*rt
+ 
  theta=theta*pi/180.0
+
  !--Reset center of mass
  call reset_centreofmass(npart,xyzh,vxyzu)
  call get_angmom(ltot,npart,xyzh,vxyzu)
@@ -178,6 +213,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     vz0   = 0.
     xyzstar = (/x0,y0,z0/)
     vxyzstar = (/vx0,vy0,vz0/)
+    vx0=vx0;vy0=vy0*0.01;vz0=vz0*0.01 !reducing velocities significantly
  else
     call fatal('moddump_tidal',' Hyperbolic orbits not implemented')
     x0 = 0.; y0 = 0.; z0 = 0.; vx0 = 0.; vy0 = 0.; vz0 = 0. ! avoid compiler warning
@@ -314,7 +350,7 @@ subroutine write_setupfile(filename)
  write(iunit,"(a)") '# parameters file for a TDE phantommodump'
  call write_inopt(beta,  'beta',  'penetration factor',                                  iunit)
  call write_inopt(Mh1,    'mh',    'mass of black hole (code units)',                    iunit)
- call write_inopt(ms,    'ms',    'mass of star       (code units)',                     iunit)
+ call write_inopt(ms,    'ms',    'mass of star 1      (code units)',                     iunit)
  call write_inopt(rs,    'rs',    'radius of star     (code units)',                     iunit)
  call write_inopt(theta, 'theta', 'stellar rotation with respect to y-axis (in degrees)',iunit)
  call write_inopt(r0,    'r0',    'starting distance  (code units)',                     iunit)
@@ -331,6 +367,9 @@ subroutine write_setupfile(filename)
        call write_inopt(Mh2,    'Mh2',    'mass of second black hole (code units)',iunit)
        call write_inopt(ecc_binary,    'ecc_binary',    'eccenticity of black hole binary (1 for parabolic)',iunit)
        call write_inopt(semimajoraxis_binary,'semimajoraxis_binary', 'sepration between black hole binary(code units)',iunit)
+    endif
+    if (use_binary_stars) then 
+       call write_inopt(ms2, 'ms2', 'mass of star 2      (code units)', iunit)
     endif
  endif
  close(iunit)
@@ -372,6 +411,9 @@ subroutine read_setupfile(filename,ierr)
        call read_inopt(ecc_binary, 'ecc_binary',    db,min=0.,max=1.,errcount=nerr)
        call read_inopt(semimajoraxis_binary, 'semimajoraxis_binary',    db,min=0.05,errcount=nerr)
     endif
+    if (use_binary_stars) then 
+       call read_inopt(ms2, 'ms2', db,min=0.,errcount=nerr)
+    endif 
  endif
  call close_db(db)
  if (nerr > 0) then
@@ -380,6 +422,27 @@ subroutine read_setupfile(filename,ierr)
  endif
 
 end subroutine read_setupfile
+
+subroutine read_binary_stars_setup(filename,ierr)
+ use infile_utils, only:open_db_from_file,inopts,read_inopt,close_db
+ use setstar,          only:read_options_star
+ use setunits,     only:read_options_and_set_units
+ character(len=*), intent(in)    :: filename
+ integer,          intent(out) :: ierr
+ integer :: ieos
+ real    :: polyk
+ integer, parameter :: iunit = 21
+ integer :: nerr,need_iso
+ type(inopts), allocatable :: db(:)
+ ierr = 0
+
+ call open_db_from_file(db,filename,iunit,ierr)
+ call read_inopt(semi_major_axis,'a',db,errcount=nerr)
+ call read_inopt(ecc_binary_stars,'ecc',db,min=0.,errcount=nerr)
+ print*,semi_major_axis,"semi major", ecc_binary_stars,"ecc binary"
+ !call read_inopt(corotate,'corotate',db,errcount=nerr)
+
+end subroutine read_binary_stars_setup
 
 subroutine get_angmom(ltot,npart,xyzh,vxyzu)
  real, intent(out)   :: ltot(3)
