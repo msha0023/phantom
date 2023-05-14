@@ -329,7 +329,7 @@ print*,"*******************"
  close(4)
  ibin = ibin-1
  print*,mass_enclosed(ibin)*umass,"enclodsed mass",pos_com,"pos com"
- print*,rad_grid(ibin),"Radius MAX"
+ print*,rad_grid(ibin)*udist,"Radius MAX"
  pos_com(:) = pos_com(:)/mass_enclosed(ibin)
  print*,pos_com,"pos of com" 
  vel_com(:) = vel_com(:)/mass_enclosed(ibin)
