@@ -108,7 +108,6 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  use physcon,         only : kb_on_mh,kboltz,atomic_mass_unit,avogadro,gg,pi,pc,years
  use orbits_data,     only : escape
  use linalg  ,        only : inverse
- use  utils_velocity, only : determine_velocity
  integer,intent(in)               :: npart,numfile
  integer,intent(out)              :: ibin,columns_compo
  real,intent(in)                  :: xyzh(:,:),vxyzu(:,:)
@@ -402,7 +401,6 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  use sortutils,       only : set_r2func_origin,indexxfunc,r2func_origin
  use eos,             only : equationofstate,entropy,X_in,Z_in,gmw,init_eos
  use physcon,         only : gg
- use  utils_velocity, only : determine_velocity 
  
  integer,intent(in)               :: npart,iorder(:),numfile
  real,intent(in)                  :: xyzh(:,:),vxyzu(:,:),xpos(:),vpos(:)
@@ -499,6 +497,7 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  energy_star = kinetic_star + poten_star
  close(5)
  print*,"==================================="
+ print*,energy_verified_no,"energy verified no"
  print*,count_val,"count val",count_val_unbound,"unbound count",count_bound_both,"count_bound_both"
  print*,"===================================="
  !next we save the index of particles which are part of star into a new array
@@ -643,7 +642,7 @@ subroutine composition_array(interpolate_comp,columns_compo,comp_label)
  n_rows = 0
  iexist = .false.
 
- filename = 'kepler.comp'
+ filename = 'tde.comp'
  !First check if kepler.comp exists.
  !This file will only be generated if KEPLER file had composition stored in it.
  inquire(file=filename,exist=iexist)
