@@ -133,6 +133,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  real,allocatable    :: A_array(:), Z_array(:)
  real,allocatable    :: interpolate_comp(:,:),composition_i(:),composition_sum(:)
  real :: ke_star,u_star,total_star,distance_from_bh,vel_from_bh,vel_at_infinity
+
  ieos = 2
  call init_eos(ieos,ierr)
  gmw=0.61
@@ -150,8 +151,8 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  distance_from_bh = sqrt(dot_product(xpos(:),xpos(:)))
  vel_from_bh = sqrt(dot_product(vpos(:),vpos(:)))
  print*,"******************"
-print*,distance_from_bh*udist,"distance from bh",vel_from_bh*unit_velocity,"velfrom bh"
-print*,"*******************"
+ print*,distance_from_bh*udist,"distance from bh",vel_from_bh*unit_velocity,"velfrom bh"
+ print*,"*******************"
  ! sorting particles
  call set_r2func_origin(xpos(1),xpos(2),xpos(3))
  call indexxfunc(npart,r2func_origin,xyzh,iorder)
@@ -167,7 +168,6 @@ print*,"*******************"
  dummy_bins           = 5000
  ibin                 = 1
  double_the_no        = .True.
-
  allocate(density(dummy_bins),rad_grid(dummy_bins),mass_enclosed(dummy_bins),bin_mass(dummy_bins),temperature(dummy_bins),rad_vel(dummy_bins),angular_vel_3D(3,dummy_bins))
  density_sum     = 0.
  temperature_sum = 0.
@@ -329,14 +329,14 @@ print*,"*******************"
  close(4)
  ibin = ibin-1
  print*,mass_enclosed(ibin)*umass,"enclodsed mass",pos_com,"pos com"
- print*,rad_grid(ibin)*udist,"Radius MAX"
+ print*,rad_grid(ibin),"Radius MAX"
  pos_com(:) = pos_com(:)/mass_enclosed(ibin)
  print*,pos_com,"pos of com" 
  vel_com(:) = vel_com(:)/mass_enclosed(ibin)
  print*,pos_com,"pos_com",xpos,"xpos",vel_com,"vel com",vpos,"vpos"
  print*,ibin,"ibin",tot_binned_particles
- pos_mag_star = sqrt(dot_product(pos_com,pos_com))
- vel_mag_star = sqrt(dot_product(vel_com,vel_com))
+ pos_mag_star = norm2(pos_com)
+ vel_mag_star = norm2(vel_com)
  print*,"bhmass*umass",bhmass*umass
  print*,"-------------------------------------------------------------------------"
  print*,escape(vel_mag_star*unit_velocity,bhmass*umass,pos_mag_star*udist)
@@ -360,6 +360,13 @@ print*,"*******************"
  call write_compo_wrt_bh(xyzh,vxyzu,xpos,vpos,pmass,npart,iorder,array_bh_j,interpolate_comp,columns_compo,comp_label,energy_verified_no,last_particle_with_neg_e)
  call write_dump_info(numfile,density(1),temperature(1),mass_enclosed(ibin),xpos,rad_grid(ibin),distance_from_bh,&
                          pos_mag_star,vel_mag_star,total_star,ke_star,u_star,time,vel_at_infinity)
+
+ u_star = 0.5*vel_mag_star**2
+ ke_star = -1/ pos_mag_star
+ !call  determine_velocity(u_star+ke_star, pos_mag_star)
+ print*,"++++++++++++++++++++++++++++++++++++"
+ print*,u_star+ke_star,"TOT ENERGY",u_star,"u star",ke_star,"ke star"
+ print*,"++++++++++++++++++++++++++++++++++++"
 end subroutine phantom_to_kepler_arrays
 
  !----------------------------------------------------------------
@@ -394,7 +401,7 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  use sortutils,       only : set_r2func_origin,indexxfunc,r2func_origin
  use eos,             only : equationofstate,entropy,X_in,Z_in,gmw,init_eos
  use physcon,         only : gg
-
+ 
  integer,intent(in)               :: npart,iorder(:),numfile
  real,intent(in)                  :: xyzh(:,:),vxyzu(:,:),xpos(:),vpos(:)
  real,intent(in)                  :: pmass
@@ -411,7 +418,8 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  real :: potential_i, kinetic_i,energy_i,pos_mag,vel_mag
  logical :: bound_to_bh,bound_to_star
  real,allocatable    :: composition_i(:)
- 
+ real :: poten_star,kinetic_star,energy_star
+
  bound_to_bh = .false.
  bound_to_star = .false.
  particle_bound_bh = 0
@@ -422,7 +430,10 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  count_val = 0
  count_val_unbound = 0
  count_bound_both = 0
-
+ poten_star = 0.
+ kinetic_star = 0.
+ energy_star = 0.
+ 
  write(output,"(a8,i5.5)") 'compfull',numfile
    open(5,file=output)
    write(5,"(18(a22,1x))") &
@@ -433,9 +444,9 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  do j = 1, npart
 
     i  = iorder(j) !Access the rank of each particle in radius.
-    potential_wrt_bh = -(gg*umass*pmass*umass)/(sqrt(dot_product(xyzh(1:3,i),xyzh(1:3,i)))*udist)
-    kinetic_wrt_bh = 0.5*pmass*umass*dot_product(vxyzu(1:3,i),vxyzu(1:3,i))*unit_velocity**2
-    tot_wrt_bh = potential_wrt_bh+ kinetic_wrt_bh+vxyzu(4,i)*pmass*unit_energ
+    potential_wrt_bh = -(1)/norm2(xyzh(1:3,i))
+    kinetic_wrt_bh = 0.5*dot_product(vxyzu(1:3,i),vxyzu(1:3,i))
+    tot_wrt_bh = potential_wrt_bh + kinetic_wrt_bh
     if (tot_wrt_bh < 0.) then
        bound_to_bh = .True.
     endif
@@ -454,7 +465,7 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
     kinetic_i     = 0.5*pmass*vel_mag**2
 
     energy_i = potential_i + kinetic_i + vxyzu(4,i)*pmass
-    
+   
     !if energy is less than 0, we have bound system. We can accept these particles.
     if (energy_i < 0. .and. kinetic_i < 0.5*abs(potential_i)) then
        bound_to_star = .True.
@@ -462,7 +473,9 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
        last_particle_with_neg_e = j
        index_particle_star(index_val) = j
        index_val = index_val+1
-    endif
+       poten_star = poten_star + potential_wrt_bh
+       kinetic_star = kinetic_star + kinetic_wrt_bh  
+   endif
 
     if (bound_to_bh == .True. .and. bound_to_star == .false.) then 
         count_val = count_val + 1
@@ -473,15 +486,18 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
     if (bound_to_bh == .True. .and. bound_to_star == .True.) then 
         count_bound_both = count_bound_both + 1
     endif 
-
+    
     if (bound_to_bh == .false. .and. bound_to_star == .false.) then
         count_val_unbound = count_val_unbound + 1
     endif 
+    
     bound_to_bh = .false.
     bound_to_star = .false.
  enddo
+ energy_star = kinetic_star + poten_star
  close(5)
  print*,"==================================="
+ print*,energy_verified_no,"energy verified no"
  print*,count_val,"count val",count_val_unbound,"unbound count",count_bound_both,"count_bound_both"
  print*,"===================================="
  !next we save the index of particles which are part of star into a new array
@@ -501,6 +517,8 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
  print*,"--------"
  print*,particle_bound_bh,"particle bound to the bh",size(array_bh_j),"array bh j"
  print*,"Size of array with particles",size(array_particle_j)
+ print*,"++++++++++++++++++++++++++++++++++++"
+ print*,energy_star,"total energy of star",kinetic_star,"kineticstar",poten_star,"poten star"
  print*,"--------"
 end subroutine particles_bound_to_star
  !----------------------------------------------------------------
@@ -624,7 +642,7 @@ subroutine composition_array(interpolate_comp,columns_compo,comp_label)
  n_rows = 0
  iexist = .false.
 
- filename = 'kepler.comp'
+ filename = 'tde.comp'
  !First check if kepler.comp exists.
  !This file will only be generated if KEPLER file had composition stored in it.
  inquire(file=filename,exist=iexist)
