@@ -149,7 +149,6 @@ real function semimajor_axis(mass1,mass2,pos_vec,vel_vec)
  !formula used is a = h^2/(G(M*+M_BH)*(1-e^2))
  semimajor_axis = h2/((gg*(mass1+mass2))*(1-eccentricity_value**2))
 
-
 end function semimajor_axis
 
  !----------------------------------------------------------------
