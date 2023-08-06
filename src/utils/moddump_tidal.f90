@@ -45,10 +45,16 @@ module moddump
          spin,    &  ! spin of black hole
          Mh2,     &  ! BH mass2
          semimajoraxis_binary, & !sepration
-         ecc_binary !eccentricity of the black hole
+         ecc_binary, & !eccentricity of the black hole
+         x_gr, &
+         y_gr, &
+         z_gr, &
+         vx_gr, &
+         vy_gr, &
+         vz_gr 
 
  integer, public :: iorigin  ! which black hole to use for the origin
- logical,public :: use_binary,use_sink,use_binary_stars
+ logical,public :: use_binary,use_sink,use_binary_stars,use_geodesic
 
 contains
 
@@ -71,7 +77,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  integer,  intent(inout) :: npartoftype(:)
  real,     intent(inout) :: massoftype(:)
  real,     intent(inout) :: xyzh(:,:),vxyzu(:,:)
- character(len=120)      :: filename
+ character(len=120)      :: filename,filename2
  integer                 :: i,ierr
  logical                 :: iexist
  real                    :: Ltot(3)
@@ -111,6 +117,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  use_binary = .false.
  use_sink = .false.
  use_binary_stars = .false.
+ use_geodesic = .false.
  iorigin = 0
 
  filename = 'tde'//'.tdeparams'                                ! moddump should really know about the output file prefix...
@@ -121,9 +128,21 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     print*,' Edit '//trim(filename)//' and rerun phantommoddump'
     stop
  endif
- print*,"--------------------------------------------"
- print*,use_binary,"use_binary"
- print*,"--------------------------------------------"
+
+ rt = (m0/ms)**(1./3.) * rs
+ rp = rt/beta
+ print*, rp,"pericentre of this orbit"
+ if (abs(ecc-1.) < tiny(1.) .and. use_geodesic) then   
+    filename2 = 'orbit'//'.tdeparams'                                ! moddump should really know about the output file prefix...
+    inquire(file=filename2,exist=iexist)
+    if (iexist) call read_grfile(filename2,ierr)
+    if (.not. iexist .or. ierr /= 0) then
+         call write_grfile(filename2)
+         print*,' Edit '//trim(filename2)//' and rerun phantommoddump'
+         stop
+     endif
+ endif 
+
  m0 = Mh1
  if (use_binary) then
     select case(iorigin)
@@ -136,8 +155,6 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     end select
  endif
  
- rt = (m0/ms)**(1./3.) * rs
- rp = rt/beta
  theta=theta*pi/180.0
  !--Reset center of mass
  call reset_centreofmass(npart,xyzh,vxyzu)
@@ -167,22 +184,32 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     vz0 = vxyzstar(3)
 
  elseif (abs(ecc-1.) < tiny(1.)) then
-    print*, 'Parabolic orbit',r0,"r0"
-    y0    = -2.*rp + r0
-    x0    = -sqrt(r0**2 - y0**2)
-    z0    = 0.
-    vx0   = sqrt(2*m0/r0) * 2*rp / sqrt(4*rp**2 + x0**2)
-    vy0   = sqrt(2*m0/r0) * x0   / sqrt(4*rp**2 + x0**2)
-    vz0   = 0.
-    xyzstar = (/x0,y0,z0/)
-    vxyzstar = (/vx0,vy0,vz0/)
+    if (.not. use_geodesic) then 
+        print*, 'Parabolic orbit in Newtonian case',r0,"r0"
+        y0    = -2.*rp + r0
+        x0    = -sqrt(r0**2 - y0**2)
+        z0    = 0.
+        vx0   = sqrt(2*m0/r0) * 2*rp / sqrt(4*rp**2 + x0**2)
+        vy0   = sqrt(2*m0/r0) * x0   / sqrt(4*rp**2 + x0**2)
+        vz0   = 0.
+     else 
+        y0 = y_gr
+        x0 = x_gr
+        z0 = z_gr
+        vx0 = vx_gr
+        vy0 = vy_gr
+        vz0 = vz_gr
+     endif 
+     xyzstar = (/x0,y0,z0/)
+     vxyzstar = (/vx0,vy0,vz0/)
+  
  else
     call fatal('moddump_tidal',' Hyperbolic orbits not implemented')
     x0 = 0.; y0 = 0.; z0 = 0.; vx0 = 0.; vy0 = 0.; vz0 = 0. ! avoid compiler warning
  endif
 
  !--Set input file parameters
- print*,x0,y0,"x0,y0",vx0,"vx0",vy0,"vy0"
+ print*,x0,y0,"x0,y0",vx0,"vx0",vy0,"vy0",vx,"vx"
  accradius1     = (2*Mh1)/(c_light**2) ! R_sch = 2*G*Mh/c**2
  print*,"use sink", use_sink
  !--Set input file parameters
@@ -335,6 +362,7 @@ subroutine write_setupfile(filename)
  call write_inopt(incline,'incline','inclination (in x-z plane)',                          iunit)
  if (gr) then
     call write_inopt(spin,   'a',   'spin of SMBH',                                       iunit)
+    call write_inopt(use_geodesic, 'use_geodesic', 'true/false',iunit)
  endif
  if (.not. gr) then
     call write_inopt(use_binary, 'use binary', 'true/false', iunit)
@@ -376,6 +404,7 @@ subroutine read_setupfile(filename,ierr)
 
  if (gr) then
     call read_inopt(spin, 'a',    db,min=-1.,max=1.,errcount=nerr)
+    call read_inopt(use_geodesic,'use_geodesic',db,errcount=nerr)
  endif
  if (.not. gr) then
     call read_inopt(use_binary, 'use binary', db, errcount=nerr)
@@ -395,6 +424,49 @@ subroutine read_setupfile(filename,ierr)
  endif
 
 end subroutine read_setupfile
+
+!
+!---Read/write setup file fot GR E=0 case--------------------------------------------------
+!
+subroutine write_grfile(filename)
+ use infile_utils, only:write_inopt
+ character(len=*), intent(in) :: filename
+ integer, parameter :: iunit = 20
+
+ print "(a)",' writing E=0 orbit params file '//trim(filename)
+ open(unit=iunit,file=filename,status='replace',form='formatted')
+ write(iunit,"(a)") '# parameters file for a E=0 GR orbit TDE'
+ call write_inopt(x_gr,  'x',  'x coordinate (code units)', iunit)
+ call write_inopt(y_gr,  'y',  'y coordinate  (code units)',iunit)
+ call write_inopt(z_gr,  'z',  'z coordinate  (code units)',iunit)
+ call write_inopt(vx_gr, 'vx', 'vx (code units)',iunit)
+ call write_inopt(vy_gr, 'vy', 'vy (code units)',iunit)
+ call write_inopt(vz_gr, 'vz', 'vz (code units', iunit)
+ close(iunit)
+
+end subroutine write_grfile
+
+subroutine read_grfile(filename,ierr)
+ use infile_utils, only:open_db_from_file,inopts,read_inopt,close_db
+ use io,           only:error
+ character(len=*), intent(in)  :: filename
+ integer,          intent(out) :: ierr
+ integer, parameter :: iunit = 21
+ integer :: nerr
+ type(inopts), allocatable :: db(:)
+
+ print "(a)",'reading setup options from '//trim(filename)
+ nerr = 0
+ ierr = 0
+ call open_db_from_file(db,filename,iunit,ierr)
+ call read_inopt(x_gr,   'x',   db,min=0.,errcount=nerr)
+ call read_inopt(y_gr,    'y',     db,min=0.,errcount=nerr)
+ call read_inopt(z_gr,     'z',     db,min=0.,errcount=nerr)
+ call read_inopt(vx_gr,     'vx',     db,min=-100.,errcount=nerr)
+ call read_inopt(vy_gr,  'vy',  db,min=-100.,errcount=nerr)
+ call read_inopt(vz_gr,     'vz',     db,min=-100.,errcount=nerr)
+
+end subroutine read_grfile
 
 subroutine get_angmom(ltot,npart,xyzh,vxyzu)
  real, intent(out)   :: ltot(3)
