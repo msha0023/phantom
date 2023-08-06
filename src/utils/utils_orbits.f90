@@ -166,10 +166,10 @@ real function period_star(mass1,mass2,pos_vec,vel_vec)
  real :: semimajor
  
  semimajor = semimajor_axis(mass1,mass2,pos_vec,vel_vec)
-
+ print*,semimajor,"SEMIMAJOR AXIS OF ORBIT"
  ! using Kepler's 3rd law to calculated period 
  period_star = sqrt((4*pi**2*abs(semimajor)**3)/(gg*(mass1+mass2)))
-
+ period_star = period_star/(24*3600*365)
 end function period_star
 
  !----------------------------------------------------------------
