@@ -106,7 +106,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  use sortutils,       only : set_r2func_origin,indexxfunc,r2func_origin
  use eos,             only : equationofstate,entropy,X_in,Z_in,gmw,init_eos
  use physcon,         only : kb_on_mh,kboltz,atomic_mass_unit,avogadro,gg,pi,pc,years
- use orbits_data,     only : escape
+ use orbits_data,     only : escape,semimajor_axis,period_star
  use linalg  ,        only : inverse
  integer,intent(in)               :: npart,numfile
  integer,intent(out)              :: ibin,columns_compo
@@ -133,7 +133,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  real,allocatable    :: A_array(:), Z_array(:)
  real,allocatable    :: interpolate_comp(:,:),composition_i(:),composition_sum(:)
  real :: ke_star,u_star,total_star,distance_from_bh,vel_from_bh,vel_at_infinity
-
+ real :: period_val
  ieos = 2
  call init_eos(ieos,ierr)
  gmw=0.61
@@ -191,17 +191,27 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  write(3,*) "[ibin]"," ","[rad_inner]"," ","[rad_outer]"," ","[Position rad next]"," ","[particles in bin]"
  write(output,"(a4,i5.5)") 'compo',numfile
  open(4,file=output)
- write(4,"(28(a22,1x))") &
+ write(4,"(29(a22,1x))") &
           "i",      &
           "ibin",   &
           "radius", &
           "x", &
           "y", &
-          "x", &
+          "z", &
           "radial_vel",&
           'temp',&
+          'density',&
           'int_energy',&
           comp_label
+ open(41,file="remnant")
+ write(41,"(6(a22,1x))") &
+          "x", &
+          "y", &
+          "z", &
+          "m", &
+          "h", &
+          'rho'
+           
  pos_com(:) = 0.
  vel_com(:) = 0.
  ! Now we calculate the different quantities of the particles and bin them
@@ -266,7 +276,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
        rad_mom_sum  = rad_mom_sum + momentum_i
     endif
     
-    write(4,'(i9,1x,i5,1x,26(e18.10,1x))') &
+    write(4,'(i9,1x,i5,1x,27(e18.10,1x))') &
                i, &
                ibin, &
                pos_mag*udist, &
@@ -275,8 +285,17 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
                pos(3)*udist, &
                rad_vel_i,&
                temperature_i,&
+               density_i,&
                eni_input,&
                composition_i(:)
+    write(41,'(6(e18.10,1x))') &
+           pos(1), &
+           pos(2), &
+           pos(3), &
+           pmass,  &
+           xyzh(4,i), &
+           density_i
+
 
     ! Angular momentum
     call cross_product3D(pos(:),vel(:),Li(:))
@@ -301,7 +320,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
        if (j==1) then 
                print*,count_particles,"count_particles",ibin,"ibin"
        endif 
-       !print*,count_particles,"count particles",ibin,"ibin"
+      ! print*,count_particles,"count particles",ibin,"ibin"
        tot_binned_particles = tot_binned_particles+count_particles
        call radius_of_remnant(array_particle_j,count_particles,number_per_bin,j,energy_verified_no,xpos,vpos,xyzh,vxyzu,iorder,pos_mag,radius_star)
        rad_grid(ibin)      = radius_star
@@ -350,6 +369,7 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  close(2)
  close(3)
  close(4)
+ close(41)
  ibin = ibin-1
  print*,mass_enclosed(ibin)*umass,"enclodsed mass",pos_com,"pos com"
  print*,rad_grid(ibin),"Radius MAX"
@@ -381,6 +401,10 @@ subroutine phantom_to_kepler_arrays(xyzh,vxyzu,pmass,npart,time,density,rad_grid
  if (isnan(vel_at_infinity)) then 
          vel_at_infinity = 0.
  endif
+ if (total_star < 0.) then 
+      period_val = period_star(mass_enclosed(ibin)*umass,1*umass,pos_com*udist,vel_com*unit_velocity)
+      print*,period_val,"PERIOD OF STAR"
+ endif 
  print*,vel_at_infinity*1.e-5,"vel at infinity in Km/s"
  print*,umass,"umass",udist,"udist",unit_density,"unit_density",unit_velocity,"unit_velocity",utime,"utime"
  ! write information to the dump_info file 
@@ -517,7 +541,7 @@ subroutine particles_bound_to_star(xpos,vpos,xyzh,vxyzu,pmass,npart,iorder,energ
 
     !if energy is less than 0, we have bound system. We can accept these particles.
     if (energy_i < 0. .and. kinetic_i < 0.5*abs(potential_i)) then
-       if (temperature_i > 0.) then 
+       if (temperature_i > 4.e3) then
            bound_to_star = .True.
            energy_verified_no = energy_verified_no + 1
            mass_star = energy_verified_no*pmass*umass
@@ -596,7 +620,6 @@ subroutine particles_per_bin(energy_verified_no,number_per_bin)
  integer :: number_bins
 
  !calculate the number of particles per bin
- !number_bins = 500
  number_bins = 500
  number_per_bin = (energy_verified_no/number_bins)
  if (mod(energy_verified_no,number_bins) /=  0) then
@@ -615,7 +638,7 @@ subroutine no_per_bin(j,count_particles,double_the_no,number_per_bin,big_bins_no
  logical,intent(inout) :: double_the_no
  integer,intent(in)    :: count_particles,big_bins_no,j,energy_verified_no
  real,intent(in)       :: pos_mag_next,rad_inner
- real,parameter :: min_no=20
+ real,parameter :: min_no=10
 
  if (j==1) then
     number_per_bin = 1
