@@ -459,9 +459,9 @@ subroutine read_grfile(filename,ierr)
  nerr = 0
  ierr = 0
  call open_db_from_file(db,filename,iunit,ierr)
- call read_inopt(x_gr,   'x',   db,min=0.,errcount=nerr)
- call read_inopt(y_gr,    'y',     db,min=0.,errcount=nerr)
- call read_inopt(z_gr,     'z',     db,min=0.,errcount=nerr)
+ call read_inopt(x_gr,   'x',   db,min=-100000.,errcount=nerr)
+ call read_inopt(y_gr,    'y',     db,min=-100000.,errcount=nerr)
+ call read_inopt(z_gr,     'z',     db,min=-10000.,errcount=nerr)
  call read_inopt(vx_gr,     'vx',     db,min=-100.,errcount=nerr)
  call read_inopt(vy_gr,  'vy',  db,min=-100.,errcount=nerr)
  call read_inopt(vz_gr,     'vz',     db,min=-100.,errcount=nerr)

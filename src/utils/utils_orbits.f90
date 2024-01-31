@@ -20,7 +20,7 @@ module orbits_data
  implicit none
 
  public :: escape, eccentricity_vector, eccentricity_star
- public :: semimajor_axis, period_star, orbital_angles
+ public :: semimajor_axis,period_star, orbital_angles
  public :: isco_kerr
 
  private
@@ -69,7 +69,7 @@ function hvector(pos_vec,vel_vec)
  real,intent(in) :: pos_vec(3),vel_vec(3)
  real,dimension(3) :: hvector
 
- call cross_product3D(vel_vec,pos_vec,hvector)
+ call cross_product3D(pos_vec,vel_vec,hvector)
 
 end function hvector
 
@@ -166,7 +166,7 @@ real function period_star(mass1,mass2,pos_vec,vel_vec)
  real :: semimajor
  
  semimajor = semimajor_axis(mass1,mass2,pos_vec,vel_vec)
- print*,semimajor,"SEMIMAJOR AXIS OF ORBIT"
+ print*,semimajor/(1.496e13),"SEMIMAJOR AXIS OF ORBIT IN AU"
  ! using Kepler's 3rd law to calculated period 
  period_star = sqrt((4*pi**2*abs(semimajor)**3)/(gg*(mass1+mass2)))
  period_star = period_star/(24*3600*365)
