@@ -1,8 +1,8 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2024 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
-! http://phantomsph.bitbucket.io/                                          !
+! http://phantomsph.github.io/                                             !
 !--------------------------------------------------------------------------!
 module moddump
 !
@@ -155,6 +155,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     end select
  endif
  
+ 
  theta=theta*pi/180.0
  !--Reset center of mass
  call reset_centreofmass(npart,xyzh,vxyzu)
@@ -229,7 +230,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
                     xyzmh_ptmass,vxyz_ptmass,nptmass,ierr)
  ! This option allows the user to use a sink particle as black hole.
  elseif (use_sink) then
-   ! single black hole in Newtonian gravity using a sink particle
+    ! single black hole in Newtonian gravity using a sink particle
     nptmass = nptmass + 1
     xyzmh_ptmass(:,nptmass) = 0.
     xyzmh_ptmass(4,nptmass) = m0
@@ -327,7 +328,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     write(*,'(a)') "Use Binary BH = True"
     write(*,'(a,Es12.5,a)')'Eccentricity of the binary black hole system = ', ecc_binary
     write(*,'(a,Es12.5,a)') 'Separation betweent the two black holes = ', semimajoraxis_binary
- elseif (use_sink .and. .not.gr) then 
+ elseif (use_sink .and. .not.gr) then
     write(*,'(a)') "Use Sink particle as BH = True"
  elseif (use_binary_stars) then 
     write(*,'(a)') "Use binary stars = True"

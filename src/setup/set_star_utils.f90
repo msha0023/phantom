@@ -1,8 +1,8 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2024 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
-! http://phantomsph.bitbucket.io/                                          !
+! http://phantomsph.github.io/                                             !
 !--------------------------------------------------------------------------!
 module setstar_utils
 !
@@ -269,7 +269,7 @@ subroutine set_star_density(lattice,id,master,rmin,Rstar,Mstar,hfact,&
  npart_old = npart
  n = np
  mass_is_set = .false.
- if (npart_old /= 0 .and. massoftype(igas) > tiny(0.)) then
+ if (massoftype(igas) > tiny(0.)) then
     n = nint(Mstar/massoftype(igas))
     mass_is_set = .true.
     print "(a,i0)",' WARNING: particle mass is already set, using np = ',n
@@ -310,11 +310,13 @@ end subroutine set_star_density
 !  Add a sink particle as a stellar core
 !+
 !-----------------------------------------------------------------------
-subroutine set_stellar_core(nptmass,xyzmh_ptmass,vxyz_ptmass,ihsoft,mcore,hsoft,ierr)
+subroutine set_stellar_core(nptmass,xyzmh_ptmass,vxyz_ptmass,ihsoft,mcore,&
+                            hsoft,ilum,lcore,ierr)
  integer, intent(out) :: nptmass,ierr
  real, intent(out)    :: xyzmh_ptmass(:,:),vxyz_ptmass(:,:)
- real, intent(in)     :: mcore,hsoft
- integer              :: n,ihsoft
+ real, intent(in)     :: mcore,hsoft,lcore
+ integer, intent(in)  :: ihsoft,ilum
+ integer              :: n
 
  ierr = 0
  ! Check for sensible values
@@ -326,12 +328,17 @@ subroutine set_stellar_core(nptmass,xyzmh_ptmass,vxyz_ptmass,ihsoft,mcore,hsoft,
     ierr = 2
     return
  endif
+ if (lcore < 0.) then
+    ierr = 3
+    return
+ endif
 
  nptmass                = 1
  n                      = nptmass
  xyzmh_ptmass(:,n)      = 0. ! zero all quantities by default
  xyzmh_ptmass(4,n)      = mcore
  xyzmh_ptmass(ihsoft,n) = hsoft
+ xyzmh_ptmass(ilum,n)   = lcore
  vxyz_ptmass(:,n)       = 0.
 
 end subroutine set_stellar_core
