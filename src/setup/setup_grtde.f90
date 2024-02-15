@@ -29,10 +29,11 @@ module setup
  implicit none
  public :: setpart
 
- real    :: mhole,beta,ecc,norbits,theta
+ real    :: mhole,beta,ecc,norbits,theta,nstar
  integer :: dumpsperorbit
- logical :: relax
- type(star_t) :: star
+ type(star_t) :: star(2)
+ real    :: a_binary,ecc_binary,inc_binary,O_binary,w_binary,f_binary
+ logical :: relax,corotate_binary
 
  private
 
@@ -45,18 +46,19 @@ contains
 !----------------------------------------------------------------
 subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,time,fileprefix)
  use part,      only:nptmass,xyzmh_ptmass,vxyz_ptmass,ihacc,ihsoft,igas,&
-                     gravity,eos_vars,rad
+                     gravity,eos_vars,rad,nsinkproperties
  use setbinary, only:set_binary
  use setstar,   only:set_star,shift_star
  use units,     only:set_units,umass,udist
  use physcon,   only:solarm,pi,solarr
  use io,        only:master,fatal,warning
+ use options,   only:iexternalforce
  use timestep,  only:tmax,dtmax
  use metric,    only:mass1,a
  use eos,       only:ieos,X_in,Z_in
  use kernel,    only:hfact_default
  use mpidomain, only:i_belong
- use externalforces, only:accradius1,accradius1_hard
+ use externalforces, only:accradius1,accradius1_hard,iext_corotate
  use vectorutils,    only:rotatevec
  use gravwaveutils,  only:theta_gw,calc_gravitwaves
  use setup_params,   only:rhozero,npart_total
@@ -70,12 +72,13 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  character(len=20), intent(in)    :: fileprefix
  real,              intent(out)   :: vxyzu(:,:)
  character(len=120) :: filename
- integer :: ierr
- logical :: iexist,write_profile,use_var_comp
+ integer :: ierr,nptmass_in,iextern_prev,i
+ logical :: iexist,write_profile,use_var_comp,add_spin
  real    :: rtidal,rp,semia,period,hacc1,hacc2
  real    :: vxyzstar(3),xyzstar(3)
  real    :: r0,vel,lorentz
  real    :: vhat(3),x0,y0
+ real :: xyzmh_ptmass_in(nsinkproperties,2),vxyz_ptmass_in(3,2)
 !
 !-- general parameters
 !
@@ -84,6 +87,15 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  polyk = 1.e-10    ! <== uconst
  gamma = 5./3.
  ieos  = 2
+ a_binary    = 10.
+ ecc_binary  = 0.
+ inc_binary = 0.
+ O_binary = 0.
+ w_binary = 270.
+ f_binary = 180.
+ nptmass_in = 0
+ iextern_prev = iexternalforce
+ iexternalforce = 0
  if (.not.gravity) call fatal('setup','recompile with GRAVITY=yes')
 !
 !-- space available for injected gas particles
@@ -128,25 +140,54 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  !
  !--set up and relax a star
  !
- call set_star(id,master,star,xyzh,vxyzu,eos_vars,rad,npart,npartoftype,&
+
+ if (nstar == 1.) then
+ call set_star(id,master,star(1),xyzh,vxyzu,eos_vars,rad,npart,npartoftype,&
                massoftype,hfact,xyzmh_ptmass,vxyz_ptmass,nptmass,ieos,polyk,gamma,&
                X_in,Z_in,relax,use_var_comp,write_profile,&
                rhozero,npart_total,i_belong,ierr)
+ endif
 
+ if (nstar == 2.) then 
+   do i=1,nstar
+    if (star(i)%iprofile > 0) then
+       print "(/,a,i0,a)",' --- STAR ',i,' ---'
+       call set_star(id,master,star(i),xyzh,vxyzu,eos_vars,rad,npart,npartoftype,&
+                     massoftype,hfact,xyzmh_ptmass,vxyz_ptmass,nptmass,ieos,polyk,gamma,&
+                     X_in,Z_in,relax,use_var_comp,write_profile,&
+                     rhozero,npart_total,i_belong,ierr,itype=i)
+    endif
+ enddo
+
+ endif
  if (ierr /= 0) call fatal('setup','errors in set_star')
-
+ 
+ ! 
+ !--place binary stars around each other 
+ !
+ !--now setup orbit using fake sink particles
+ !
+ nptmass_in = 0
+ if (nstar > 1) then
+    call set_binary(star(1)%mstar,star(2)%mstar,a_binary,ecc_binary,star(1)%hacc,star(2)%hacc,&
+                    xyzmh_ptmass_in,vxyz_ptmass_in,nptmass_in,ierr,&
+                    posang_ascnode=O_binary,arg_peri=w_binary,incl=inc_binary,f=f_binary,verbose=(id==master))
+    add_spin = corotate_binary
+ endif
+ print*,size(xyzmh_ptmass_in),"size of xyzmh_ptmass_in"
+ if (ierr /= 0) call fatal ('setup_binary','error in call to set_binary')
  !
  !--place star into orbit
  !
- rtidal          = star%rstar*(mass1/star%mstar)**(1./3.)
+ rtidal          = star(1)%rstar*(mass1/star(1)%mstar)**(1./3.)
  rp              = rtidal/beta
  accradius1_hard = 5.*mass1
  accradius1      = accradius1_hard
  a               = 0.
  theta           = theta*pi/180.
 
- print*, 'mstar', star%mstar
- print*, 'rstar', star%rstar
+ print*, 'mstar', star(1)%mstar
+ print*, 'rstar', star(1)%rstar
  print*, 'umass', umass
  print*, 'udist', udist
  print*, 'mass1', mass1
@@ -164,11 +205,11 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     semia    = rp/(1.-ecc)
     period   = 2.*pi*sqrt(semia**3/mass1)
     print*, 'period', period
-    hacc1    = star%rstar/1.e8    ! Something small so that set_binary doesnt warn about Roche lobe
+    hacc1    = star(1)%rstar/1.e8    ! Something small so that set_binary doesnt warn about Roche lobe
     hacc2    = hacc1
     ! apocentre = rp*(1.+ecc)/(1.-ecc)
     ! trueanom = acos((rp*(1.+ecc)/r0 - 1.)/ecc)*180./pi
-    call set_binary(mass1,star%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
+    call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
                     posang_ascnode=0.,arg_peri=90.,incl=0.,f=-180.)
     vxyzstar = vxyz_ptmass(1:3,2)
     xyzstar  = xyzmh_ptmass(1:3,2)
@@ -212,8 +253,10 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     print "(a,3f10.3,/)",'       Pericentre = ',rp
  endif
 
- call shift_star(npart,xyzh,vxyzu,x0=xyzstar,v0=vxyzstar)
-
+ do i=1,nstar
+    call shift_star(npart,xyzh,vxyzu,x0=xyzmh_ptmass_in(1:3,i)+xyzstar,&
+                       v0=vxyz_ptmass_in(1:3,i)+vxyzstar,itype=i)
+ enddo
  if (id==master) print "(/,a,i10,/)",' Number of particles setup = ',npart
 
  !
@@ -244,10 +287,31 @@ subroutine write_setupfile(filename)
  print "(a)",' writing setup options file '//trim(filename)
  open(newunit=iunit,file=filename,status='replace',form='formatted')
  write(iunit,"(a)") '# input file for tidal disruption setup'
- call write_options_star(star,iunit)
- call write_inopt(relax,'relax','relax star into hydrostatic equilibrium',iunit)
- if (relax) call write_options_relax(iunit)
+ 
+ call write_inopt(nstar, 'nstar', 'number of stars you want?', iunit)
 
+ if (nstar == 1) then
+     call write_options_star(star(1),iunit)
+     call write_inopt(relax,'relax','relax star into hydrostatic equilibrium',iunit)
+     if (relax) call write_options_relax(iunit)
+ endif
+ 
+ if (nstar == 2) then
+     call write_options_star(star(1),iunit,label='1')
+     !call write_inopt(relax,'relax','relax star into hydrostatic equilibrium',iunit)
+     !if (relax) call write_options_relax(iunit)
+
+     call write_options_star(star(2),iunit,label='2')
+     !call write_inopt(relax,'relax','relax star into hydrostatic equilibrium',iunit)
+     !if (relax) call write_options_relax(iunit)
+     if (any(star(:)%iprofile > 0)) then
+        write(iunit,"(/,a)") '# relaxation options'
+        call write_inopt(relax,'relax','relax stars into equilibrium',iunit)
+        call write_options_relax(iunit)
+     endif
+
+     call write_setupfile_binary(iunit)
+ endif
  write(iunit,"(/,a)") '# options for black hole and orbit'
  call write_inopt(mhole,        'mhole',        'mass of black hole (solar mass)',iunit)
  call write_inopt(beta,         'beta',         'penetration factor',             iunit)
@@ -286,10 +350,30 @@ subroutine read_setupfile(filename,ieos,polyk,ierr)
  !
  !--read star options and convert to code units
  !
- call read_options_star(star,need_iso,ieos,polyk,db,nerr)
- call read_inopt(relax,'relax',db,errcount=nerr)
- if (relax) call read_options_relax(db,nerr)
+ call read_inopt(nstar,'nstar',db,min=0.,errcount=nerr)
 
+ if (nstar == 1) then 
+    call read_options_star(star(1),need_iso,ieos,polyk,db,nerr)
+    call read_inopt(relax,'relax',db,errcount=nerr)
+    if (relax) call read_options_relax(db,nerr)
+ endif 
+
+ if (nstar == 2) then
+    call read_options_star(star(1),need_iso,ieos,polyk,db,nerr,label='1')
+    call read_options_star(star(2),need_iso,ieos,polyk,db,nerr,label='2')
+    if (any(star(:)%iprofile > 0)) then
+       call read_inopt(relax,'relax',db,errcount=nerr)
+       call read_options_relax(db,nerr)
+    endif
+    !call read_options_star(star(1),need_iso,ieos,polyk,db,nerr,label='1')
+    !call read_inopt(relax,'relax',db,errcount=nerr)
+    !if (relax) call read_options_relax(db,nerr)
+
+    !call read_options_star(star(2),need_iso,ieos,polyk,db,nerr,label='2')
+    !call read_inopt(relax,'relax',db,errcount=nerr)
+    !if (relax) call read_options_relax(db,nerr)
+    call read_setupfile_binary(ierr,db,iunit)
+ endif
  call read_inopt(beta,           'beta',           db,min=0.,errcount=nerr)
  call read_inopt(ecc,            'ecc',            db,min=0.,max=1.,errcount=nerr)
  call read_inopt(norbits,        'norbits',        db,min=0.,errcount=nerr)
@@ -302,5 +386,49 @@ subroutine read_setupfile(filename,ieos,polyk,ierr)
  endif
 
 end subroutine read_setupfile
+
+
+!----------------------------------------------------------------
+!+
+!  write options for the binary orbit
+!+
+!----------------------------------------------------------------
+subroutine write_setupfile_binary(iunit)
+ use infile_utils, only:write_inopt
+ integer, intent(in) :: iunit
+
+ write(iunit,"(/,a)") '# binary orbit settings'
+ call write_inopt(a_binary,'a','semi-major axis (e.g. 1 au), period (e.g. 10*days) or rp if e=1',iunit)
+ call write_inopt(ecc_binary,'ecc','eccentricity',iunit)
+ call write_inopt(inc_binary,'inc','inclination (deg)',iunit)
+ call write_inopt(O_binary,'O','position angle of ascending node (deg)',iunit)
+ call write_inopt(w_binary,'w','argument of periapsis (deg)',iunit)
+ call write_inopt(f_binary,'f','initial true anomaly (180=apoastron)',iunit)
+ call write_inopt(corotate_binary,'corotate','set stars in corotation',iunit)
+
+end subroutine write_setupfile_binary
+
+!----------------------------------------------------------------
+!+
+!  read options from .setup file
+!+
+!----------------------------------------------------------------
+subroutine read_setupfile_binary(ierr,db,iunit)
+ use infile_utils, only:open_db_from_file,inopts,read_inopt,close_db
+ use io,           only:error,fatal
+ integer,          intent(inout) :: ierr
+ integer, intent(in) :: iunit
+ integer :: nerr,need_iso
+ type(inopts), allocatable, intent(inout) :: db(:)
+ call read_inopt(a_binary,'a',db,errcount=nerr)
+ call read_inopt(ecc_binary,'ecc',db,min=0.,errcount=nerr)
+ call read_inopt(inc_binary,'inc',db,errcount=nerr)
+ call read_inopt(O_binary,'O',db,errcount=nerr)
+ call read_inopt(w_binary,'w',db,errcount=nerr)
+ call read_inopt(f_binary,'f',db,errcount=nerr)
+ call read_inopt(corotate_binary,'corotate',db,errcount=nerr)
+
+end subroutine read_setupfile_binary
+
 
 end module setup

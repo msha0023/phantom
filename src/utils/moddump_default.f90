@@ -21,11 +21,13 @@ module moddump
 contains
 
 subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
+ use setup_params,   only:ihavesetupB
  integer, intent(inout) :: npart
  integer, intent(inout) :: npartoftype(:)
  real,    intent(inout) :: massoftype(:)
  real,    intent(inout) :: xyzh(:,:),vxyzu(:,:)
 
+ ihavesetupB = .false.
  print*,' no modifications performed '
 
  return
