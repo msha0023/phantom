@@ -133,6 +133,7 @@ ifeq ($(MCFOST), yes)
     else
     #--otherwise assume the source code is lying around somewhere
        MCFOST_LIBS = $(MCFOST_INSTALL)/lib/$(FC)
+       HDF5_DIR	= $(MCFOST_LIBS)
        MCFOST_INCLUDE = $(MCFOST_INSTALL)/include
        ifeq ("X$(MCFOST_LIB)","X")
           MCFOST_LIB = $(MCFOST_DIR)/src
@@ -148,7 +149,6 @@ ifeq ($(MCFOST), yes)
     LDFLAGS+= -I$(MCFOST_INCLUDE) -I$(MCFOST_INCLUDE)/voro++ -I$(MCFOST_INCLUDE)/hdf5 -I$(MCFOST_INCLUDE)/$(FC) \
 	-L$(MCFOST_LIB) -lmcfost -L$(MCFOST_LIBS) $(LIBCXX) -lcfitsio -lvoro++ -lsprng \
    -L$(HDF5_DIR) -lhdf5_fortran -lhdf5 -lz #$(LXGBOOST)
-	#-L$(HDF5_DIR)/lib/Intel -lhdf5_fortran
 endif
 
 include Makefile_systems
@@ -289,9 +289,10 @@ endif
 ifeq ($(KROME), krome)
     FPPFLAGS += -DKROME
 ifeq ($(SYSTEM), ifort)
-    LDFLAGS  += -mkl
+    LDFLAGS  += -llapack
 else
-    LDFLAGS  += -L/usr/lib/x86_64-linux-gnu -lmkl_core -lmkl_gnu_thread -lmkl_gf_lp64 -fopenmp
+    # LDFLAGS  += -L/usr/lib/x86_64-linux-gnu -lmkl_core -lmkl_gnu_thread -lmkl_gf_lp64 -fopenmp
+    LDFLAGS  += -llapack
 endif
 endif
 
@@ -491,7 +492,7 @@ ifdef METRIC
 else
     SRCMETRIC= metric_minkowski.f90
 endif
-SRCGR=inverse4x4.f90 einsteintk_utils.f90 $(SRCMETRIC) metric_tools.f90 utils_gr.f90 interpolate3D.f90 tmunu2grid.f90 
+SRCGR=inverse4x4.f90 einsteintk_utils.f90 $(SRCMETRIC) metric_tools.f90 utils_gr.f90 interpolate3D.f90 tmunu2grid.f90
 #
 # chemistry and cooling
 #
@@ -554,7 +555,7 @@ OBJECTS = $(OBJECTS1:.F90=.o)
 ifeq ($(KROME), krome)
     .PHONY: all
 
-    all: checksystem krome_setup krome phantom
+    all: checksystem checkparams krome_setup krome phantom
     include MakeKrome
 else
     .PHONY: phantom
@@ -689,7 +690,7 @@ SRCTESTS=utils_testsuite.f90 ${TEST_FASTMATH} test_kernel.f90 \
          test_derivs.F90 test_cooling.f90 test_eos_stratified.f90 \
          test_eos.f90 test_externf.f90 test_rwdump.f90 \
          test_step.F90 test_indtstep.F90 set_disc.F90 test_setdisc.F90 \
-         test_hierarchical.f90 test_damping.f90 test_wind.f90 \
+         test_hierarchical.f90 test_damping.f90 test_wind.f90 test_iorig.f90 \
          test_link.F90 test_kdtree.F90 test_part.f90 test_ptmass.f90 test_luminosity.F90\
          test_gnewton.f90 test_corotate.f90 test_geometry.f90 \
          ${SRCTESTMPI} test_sedov.F90 test_poly.f90 test_radiation.F90 \
@@ -998,7 +999,7 @@ phantom2mcfost: checkmcfost
         ANALYSISBIN=$@ ANALYSISONLY=yes LDFLAGS="-L$(MCFOST_DIR)/src -lmcfost $(LIBCXX)"
 
 analysis_mcfost.o: analysis_mcfost.f90
-	$(FC) -c $(FFLAGS) -I$(MCFOST_INCLUDE) $< -o $@
+	$(FC) -c $(FFLAGS) -I$(MCFOST_INCLUDE) -I$(MCFOST_DIR)/src $< -o $@
 
 analysis_mcfost.o: checkmcfost
 
