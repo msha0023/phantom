@@ -465,7 +465,6 @@ pure subroutine string_delete(string,skey)
  enddo
 end subroutine string_delete
 
-
 !---------------------------------------------------------------------------
 !
 ! Split a string into substrings based on a delimiter
