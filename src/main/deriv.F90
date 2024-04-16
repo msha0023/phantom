@@ -1,8 +1,8 @@
 !--------------------------------------------------------------------------!
 ! The Phantom Smoothed Particle Hydrodynamics code, by Daniel Price et al. !
-! Copyright (c) 2007-2023 The Authors (see AUTHORS)                        !
+! Copyright (c) 2007-2024 The Authors (see AUTHORS)                        !
 ! See LICENCE file for usage and distribution conditions                   !
-! http://phantomsph.bitbucket.io/                                          !
+! http://phantomsph.github.io/                                             !
 !--------------------------------------------------------------------------!
 module deriv
 !
@@ -16,12 +16,10 @@ module deriv
 !
 ! :Dependencies: cons2prim, densityforce, derivutils, dim, externalforces,
 !   forces, forcing, growth, io, linklist, metric_tools, options, part,
-!   photoevap, ptmass, ptmass_radiation, radiation_implicit, timestep,
+!   porosity, ptmass, ptmass_radiation, radiation_implicit, timestep,
 !   timestep_ind, timing
 !
  implicit none
- character(len=80), parameter, public :: &  ! module version
-    modid="$Id$"
 
  public :: derivs, get_derivs_global
  real, private :: stressmax
@@ -38,30 +36,23 @@ contains
 !-------------------------------------------------------------
 subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
                   Bevol,dBevol,rad,drad,radprop,dustprop,ddustprop,&
-                  dustevol,ddustevol,dustfrac,eos_vars,time,dt,dtnew,pxyzu,dens,metrics)
+                  dustevol,ddustevol,filfac,dustfrac,eos_vars,time,dt,dtnew,pxyzu,dens,metrics)
  use dim,            only:maxvxyzu,mhd,fast_divcurlB,gr,periodic,do_radiation,&
-                          sink_radiation,use_dustgrowth
+                          sink_radiation,use_dustgrowth,ind_timesteps
  use io,             only:iprint,fatal,error
  use linklist,       only:set_linklist
  use densityforce,   only:densityiterate
  use ptmass,         only:ipart_rhomax,ptmass_calc_enclosed_mass,ptmass_boundary_crossing
  use externalforces, only:externalforce
  use part,           only:dustgasprop,dvdx,Bxyz,set_boundaries_to_active,&
-                          nptmass,xyzmh_ptmass,sinks_have_heating,dust_temp,VrelVf
-#ifdef IND_TIMESTEPS
+                          nptmass,xyzmh_ptmass,sinks_have_heating,dust_temp,VrelVf,fxyz_drag
  use timestep_ind,   only:nbinmax
-#else
- use timestep,       only:dtcourant,dtforce,dtrad
-#endif
- use timestep,       only:dtmax
+ use timestep,       only:dtmax,dtcourant,dtforce,dtrad
 #ifdef DRIVING
  use forcing,        only:forceit
 #endif
-#ifdef PHOTO
- use photoevap,      only:find_ionfront,photo_ionize
- use part,           only:massoftype
-#endif
- use growth,         only:get_growth_rate
+ use growth,           only:get_growth_rate
+ use porosity,         only:get_disruption,get_probastick
  use ptmass_radiation, only:get_dust_temperature
  use timing,         only:get_timings
  use forces,         only:force
@@ -69,8 +60,8 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
  use derivutils,     only:do_timing
  use cons2prim,      only:cons2primall,cons2prim_everything,prim2consall
  use metric_tools,   only:init_metric
- use radiation_implicit, only:do_radiation_implicit
- use options,        only:implicit_radiation,implicit_radiation_store_drad
+ use radiation_implicit, only:do_radiation_implicit,ierr_failed_to_converge
+ use options,        only:implicit_radiation,implicit_radiation_store_drad,use_porosity
  integer,      intent(in)    :: icall
  integer,      intent(inout) :: npart
  integer,      intent(in)    :: nactive
@@ -90,6 +81,7 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
  real,         intent(inout) :: dustprop(:,:)
  real,         intent(out)   :: dustfrac(:,:)
  real,         intent(out)   :: ddustevol(:,:),ddustprop(:,:)
+ real,         intent(inout) :: filfac(:)
  real,         intent(in)    :: time,dt
  real,         intent(out)   :: dtnew
  real,         intent(inout) :: pxyzu(:,:), dens(:)
@@ -123,7 +115,7 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
     if (gr) then
        ! Recalculate the metric after moving particles to their new tasks
        call init_metric(npart,xyzh,metrics)
-       call prim2consall(npart,xyzh,metrics,vxyzu,dens,pxyzu,use_dens=.false.)
+       !call prim2consall(npart,xyzh,metrics,vxyzu,dens,pxyzu,use_dens=.false.)
     endif
 
     if (nptmass > 0 .and. periodic) call ptmass_boundary_crossing(nptmass,xyzmh_ptmass)
@@ -131,16 +123,10 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
 
  call do_timing('link',tlast,tcpulast,start=.true.)
 
-#ifdef PHOTO
  !
- ! update location of particles on grid and calculate the location of the ionization front
+ ! compute disruption of dust particles
  !
- call find_ionfront(time,npart,xyzh,massoftype(igas))
- !
- ! update the temperatures of the particles depending on whether ionized or not
- !
- call photo_ionize(vxyzu,npart)
-#endif
+ if (use_dustgrowth .and. use_porosity) call get_disruption(npart,xyzh,filfac,dustprop,dustgasprop)
 !
 ! calculate density by direct summation
 !
@@ -170,7 +156,8 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
  !
  if (do_radiation .and. implicit_radiation .and. dt > 0.) then
     call do_radiation_implicit(dt,npart,rad,xyzh,vxyzu,radprop,drad,ierr)
-    if (ierr /= 0) call fatal('radiation','Failed to converge')
+    if (ierr /= 0 .and. ierr /= ierr_failed_to_converge) call fatal('radiation','Failed in radiation')
+    call do_timing('radiation',tlast,tcpulast)
  endif
 
 !
@@ -184,12 +171,14 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
  stressmax = 0.
  if (sinks_have_heating(nptmass,xyzmh_ptmass)) call ptmass_calc_enclosed_mass(nptmass,npart,xyzh)
  call force(icall,npart,xyzh,vxyzu,fxyzu,divcurlv,divcurlB,Bevol,dBevol,&
-            rad,drad,radprop,dustprop,dustgasprop,dustfrac,ddustevol,&
+            rad,drad,radprop,dustprop,dustgasprop,dustfrac,ddustevol,fext,fxyz_drag,&
             ipart_rhomax,dt,stressmax,eos_vars,dens,metrics)
  call do_timing('force',tlast,tcpulast)
 
  if (use_dustgrowth) then ! compute growth rate of dust particles
-    call get_growth_rate(npart,xyzh,vxyzu,dustgasprop,VrelVf,dustprop,ddustprop(1,:))!--we only get ds/dt (i.e 1st dimension of ddustprop)
+    call get_growth_rate(npart,xyzh,vxyzu,dustgasprop,VrelVf,dustprop,filfac,ddustprop(1,:))!--we only get dm/dt (i.e 1st dimension of ddustprop)
+    ! compute growth rate and probability of sticking/bouncing of porous dust
+    if (use_porosity) call get_probastick(npart,xyzh,ddustprop(1,:),dustprop,dustgasprop,filfac)
  endif
 
 !
@@ -210,11 +199,11 @@ subroutine derivs(icall,npart,nactive,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
 !
 ! set new timestep from Courant/forces condition
 !
-#ifdef IND_TIMESTEPS
- dtnew = dtmax/2**nbinmax  ! minimum timestep over all particles
-#else
- dtnew = min(dtforce,dtcourant,dtrad,dtmax)
-#endif
+ if (ind_timesteps) then
+    dtnew = dtmax/2.**nbinmax  ! minimum timestep over all particles
+ else
+    dtnew = min(dtforce,dtcourant,dtrad,dtmax)
+ endif
 
  call do_timing('total',t1,tcpu1,lunit=iprint)
 
@@ -233,7 +222,7 @@ end subroutine derivs
 !--------------------------------------
 subroutine get_derivs_global(tused,dt_new,dt)
  use part,   only:npart,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,&
-                Bevol,dBevol,rad,drad,radprop,dustprop,ddustprop,&
+                Bevol,dBevol,rad,drad,radprop,dustprop,ddustprop,filfac,&
                 dustfrac,ddustevol,eos_vars,pxyzu,dens,metrics,dustevol
  use timing, only:printused,getused
  use io,     only:id,master
@@ -249,8 +238,8 @@ subroutine get_derivs_global(tused,dt_new,dt)
  if (present(dt)) dti = dt
  call getused(t1)
  call derivs(1,npart,npart,xyzh,vxyzu,fxyzu,fext,divcurlv,divcurlB,Bevol,dBevol,&
-             rad,drad,radprop,dustprop,ddustprop,dustevol,ddustevol,dustfrac,eos_vars,&
-             time,dti,dtnew,pxyzu,dens,metrics)
+             rad,drad,radprop,dustprop,ddustprop,dustevol,ddustevol,filfac,dustfrac,&
+             eos_vars,time,dti,dtnew,pxyzu,dens,metrics)
  call getused(t2)
  if (id==master .and. present(tused)) call printused(t1)
  if (present(tused)) tused = t2 - t1
