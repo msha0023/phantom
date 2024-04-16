@@ -136,7 +136,6 @@ subroutine relax_star(nt,rho,pr,r,npart,xyzh,use_var_comp,Xfrac,Yfrac,mu,ierr,np
     return
  endif
  use_step = .false.
-
  if (iexternalforce > 0 .and. (.not. gr)) then
     call warning('relax_star','asynchronous shifting not implemented with external forces: evolving in time instead')
     use_step = .true.

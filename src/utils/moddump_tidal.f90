@@ -309,6 +309,8 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
     vxyzu(1,i)= vx*cos(incline) - vz*sin(incline)
     vxyzu(3,i)= vx*sin(incline) + vz*cos(incline)
  enddo
+ !check angular momentum after putting star on orbit
+ call get_angmom(ltot,npart,xyzh,vxyzu)
 
  theta=theta*180.0/pi
  write(*,'(a)') "======================================================================"
