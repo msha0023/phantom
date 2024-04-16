@@ -6,16 +6,15 @@
 !--------------------------------------------------------------------------!
 module rho_profile
 !
-! This contains several density profiles, including
+! This computes several radial density profiles useful for stars
+! and gravitational collapse calculations, including
 !               1) uniform
 !               2) polytrope
 !               3) piecewise polytrope
 !               4) Evrard
-!               5) Read data from MESA file
-!               6) Read data from KEPLER file
-!               7) Bonnor-Ebert sphere
+!               5) Bonnor-Ebert sphere
 !
-! :References: None
+! :References: Evrard (1988), MNRAS 235, 911-934
 !
 ! :Owner: Daniel Price
 !
@@ -27,9 +26,8 @@ module rho_profile
  implicit none
 
  public  :: rho_uniform,rho_polytrope,rho_piecewise_polytrope, &
-            rho_evrard,read_mesa,read_kepler_file, &
-            rho_bonnorebert,prompt_BEparameters
- public  :: write_profile,calc_mass_enc
+            rho_evrard,rho_bonnorebert,prompt_BEparameters
+ public  :: calc_mass_enc
  private :: integrate_rho_profile
 
  abstract interface
@@ -42,7 +40,6 @@ contains
 
 !-----------------------------------------------------------------------
 !+
-!  Option 1:
 !  Uniform density sphere
 !+
 !-----------------------------------------------------------------------
@@ -64,7 +61,6 @@ end subroutine rho_uniform
 
 !-----------------------------------------------------------------------
 !+
-!  Option 2:
 !  Density profile for a polytrope (assumes G==1)
 !+
 !-----------------------------------------------------------------------
@@ -142,7 +138,6 @@ end subroutine rho_polytrope
 
 !-----------------------------------------------------------------------
 !+
-!  Option 3:
 !  Calculate the density profile for a piecewise polytrope
 !  Original Authors: Madeline Marshall & Bernard Field
 !  Supervisors: James Wurster & Paul Lasky
@@ -287,7 +282,6 @@ end subroutine calc_mass_enc
 
 !-----------------------------------------------------------------------
 !+
-!  Option 4:
 !  Calculate the density profile for the Evrard Collapse
 !+
 !-----------------------------------------------------------------------
