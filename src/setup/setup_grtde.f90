@@ -32,9 +32,10 @@ module setup
  real    :: mhole,beta,ecc,norbits,theta,nstar
  integer :: dumpsperorbit
  type(star_t) :: star(2)
- real    :: a_binary,ecc_binary,inc_binary,O_binary,w_binary,f_binary
+ real    :: a_binary,ecc_binary,inc_binary,O_binary,w_binary,f_binary,m_binary
  logical :: relax,corotate_binary
-
+ logical :: provide_rp
+ real    :: rp_outer
  private
 
 contains
@@ -93,6 +94,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  O_binary = 0.
  w_binary = 270.
  f_binary = 180.
+ m_binary = 180.
  nptmass_in = 0
  iextern_prev = iexternalforce
  iexternalforce = 0
@@ -110,6 +112,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
 !
  mhole           = 1.e6  ! (solar masses)
  call set_units(mass=mhole*solarm,c=1.d0,G=1.d0) !--Set central mass to M=1 in code units
+ print*,umass,"umass",1e6*solarm,"1e6*solarm"
  star%mstar      = 1.*solarm/umass
  star%rstar      = 1.*solarr/udist
  star%np         = 1e6
@@ -122,6 +125,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  write_profile   = .false.
  use_var_comp    = .false.
  relax           = .false.
+ provide_rp      = .false.
 !
 !-- Read runtime parameters from setup file
 !
@@ -136,7 +140,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     endif
     stop
  endif
-
+ print*,mhole,"MASS OF SMBH",umass,"umass",udist,"udist",solarm,"solarm"
  !
  !--set up and relax a star
  !
@@ -171,7 +175,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  if (nstar > 1) then
     call set_binary(star(1)%mstar,star(2)%mstar,a_binary,ecc_binary,star(1)%hacc,star(2)%hacc,&
                     xyzmh_ptmass_in,vxyz_ptmass_in,nptmass_in,ierr,&
-                    posang_ascnode=O_binary,arg_peri=w_binary,incl=inc_binary,f=f_binary,verbose=(id==master))
+                    posang_ascnode=O_binary,arg_peri=w_binary,incl=inc_binary,f=f_binary,mean_anomaly=m_binary,verbose=(id==master))
     add_spin = corotate_binary
  endif
  print*,size(xyzmh_ptmass_in),"size of xyzmh_ptmass_in"
@@ -179,8 +183,18 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  !
  !--place star into orbit
  !
- rtidal          = star(1)%rstar*(mass1/star(1)%mstar)**(1./3.)
- rp              = rtidal/beta
+ if (nstar == 2) then 
+    rtidal          = star(1)%rstar*(mass1/star(1)%mstar)**(1./3.)
+ else 
+    rtidal          = a_binary*(mass1/(star(1)%mstar + star(2)%mstar))**(1./3.)
+    rtidal          = rtidal*215/udist
+ endif 
+ if (.not. provide_rp) then 
+    rp              = rtidal/beta
+ !else 
+  !  rp              = rp_outer
+ endif
+  
  accradius1_hard = 5.*mass1
  accradius1      = accradius1_hard
  a               = 0.
@@ -209,8 +223,13 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     hacc2    = hacc1
     ! apocentre = rp*(1.+ecc)/(1.-ecc)
     ! trueanom = acos((rp*(1.+ecc)/r0 - 1.)/ecc)*180./pi
-    call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
+    if (nstar == 1) then 
+       call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
                     posang_ascnode=0.,arg_peri=90.,incl=0.,f=-180.)
+    else
+       call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
+                    posang_ascnode=0.,arg_peri=90.,incl=0.,f=-180.)
+    endif
     vxyzstar = vxyz_ptmass(1:3,2)
     xyzstar  = xyzmh_ptmass(1:3,2)
     nptmass  = 0
@@ -319,6 +338,12 @@ subroutine write_setupfile(filename)
  call write_inopt(norbits,      'norbits',      'number of orbits',               iunit)
  call write_inopt(dumpsperorbit,'dumpsperorbit','number of dumps per orbit',      iunit)
  call write_inopt(theta,        'theta',        'inclination of orbit (degrees)', iunit)
+ call write_inopt(provide_rp, 'provide_rp', 'true/false', iunit)
+ print*,provide_rp,"provode+rp"
+ ! If the user wishes to usee the pericentre distance that they want to provide we read it and use it 
+ if (provide_rp) then 
+      call write_inopt(rp_outer,        'rp_outer',        '(AU)', iunit)
+ endif 
  close(iunit)
 
 end subroutine write_setupfile
@@ -378,8 +403,14 @@ subroutine read_setupfile(filename,ieos,polyk,ierr)
  call read_inopt(ecc,            'ecc',            db,min=0.,max=1.,errcount=nerr)
  call read_inopt(norbits,        'norbits',        db,min=0.,errcount=nerr)
  call read_inopt(dumpsperorbit,  'dumpsperorbit',  db,min=0 ,errcount=nerr)
+ 
  call read_inopt(theta,          'theta',          db,       errcount=nerr)
+ call read_inopt(provide_rp,          'provide_rp',          db,       errcount=nerr)
+ if (provide_rp) then 
+      call read_inopt(rp_outer,           'rp_outer',           db,min=0.,errcount=nerr)
+ endif
  call close_db(db)
+
  if (nerr > 0) then
     print "(1x,i2,a)",nerr,' error(s) during read of setup file: re-writing...'
     ierr = nerr
@@ -404,8 +435,9 @@ subroutine write_setupfile_binary(iunit)
  call write_inopt(O_binary,'O','position angle of ascending node (deg)',iunit)
  call write_inopt(w_binary,'w','argument of periapsis (deg)',iunit)
  call write_inopt(f_binary,'f','initial true anomaly (180=apoastron)',iunit)
+ call write_inopt(m_binary,'M','initial mean anomaly (180=apocentre)',iunit)
  call write_inopt(corotate_binary,'corotate','set stars in corotation',iunit)
-
+ 
 end subroutine write_setupfile_binary
 
 !----------------------------------------------------------------
@@ -426,6 +458,7 @@ subroutine read_setupfile_binary(ierr,db,iunit)
  call read_inopt(O_binary,'O',db,errcount=nerr)
  call read_inopt(w_binary,'w',db,errcount=nerr)
  call read_inopt(f_binary,'f',db,errcount=nerr)
+ call read_inopt(m_binary,'M',db,errcount=nerr)
  call read_inopt(corotate_binary,'corotate',db,errcount=nerr)
 
 end subroutine read_setupfile_binary
