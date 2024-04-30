@@ -36,6 +36,7 @@ contains
 !+
 !----------------------------------------------------------------
 pure subroutine get_metric_cartesian(position,gcov,gcon,sqrtg)
+ !subroutine get_metric_cartesian(position,gcov,gcon,sqrtg)
  real, intent(in)  :: position(3)
  real, intent(out) :: gcov(0:3,0:3)
  real, intent(out), optional :: gcon(0:3,0:3)
@@ -58,6 +59,7 @@ pure subroutine get_metric_cartesian(position,gcov,gcon,sqrtg)
  x2 = x**2
  y2 = y**2
  z2 = z**2
+ !print*,z2,"z2 of the particles in metric"
  a2 = a**2
  r2spherical = x2+y2+z2
  r2        = 0.5*(r2spherical-a2)+0.5*sqrt( (r2spherical-a2)**2 + 4.*a2*z2 )
@@ -95,7 +97,9 @@ pure subroutine get_metric_cartesian(position,gcov,gcon,sqrtg)
  gcov(1,3) = gcov(3,1)
  gcov(2,3) = gcov(3,2)
  gcov(3,3) = 1. + ((a2 + r2)*rs*z2)/(delta*r*rho2)
-
+! if (gcov(3,3) .ne. gcov(3,3)) then 
+ !print*,gcov(3,3),"LAST ELEMENT in the cartesian",a2,'a2',r2,'r2',rs,'rs',z2,'z2',delta,'delta',r,'r',rho2,'rho2'
+ !endif
  if (present(gcon)) then
     domegaterm = 1./(omega*gtphi + gtt)
     gcon(0,0) = domegaterm
@@ -125,6 +129,7 @@ end subroutine get_metric_cartesian
 !+
 !----------------------------------------------------------------
 pure subroutine get_metric_spherical(position,gcov,gcon,sqrtg)
+ 
  real, intent(in)  :: position(3)
  real, intent(out) :: gcov(0:3,0:3)
  real, intent(out), optional :: gcon(0:3,0:3)
@@ -160,7 +165,7 @@ pure subroutine get_metric_spherical(position,gcov,gcon,sqrtg)
  gcov(1,3) = 0.
  gcov(2,3) = 0.
  gcov(3,3) = sintheta2*(a2 + r2 + (a2*r*rs*sintheta2)/rho2)
-
+ 
  gtt         = gcov(0,0)
  grr         = gcov(1,1)
  gthetatheta = gcov(2,2)

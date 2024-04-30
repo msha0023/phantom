@@ -188,7 +188,7 @@ subroutine set_star(id,master,star,xyzh,vxyzu,eos_vars,rad,&
  if (gr) then
     if (star%rstar < 6.*star%mstar) call fatal('set_star','R < 6GM/c^2 for star in GR violates weak field assumption')
  endif
-
+ print*,nptmass,"nptmass A"
  !
  ! add sink particle stellar core
  !
@@ -604,7 +604,8 @@ subroutine write_options_star(star,iunit,label)
  case(imesa)
     call write_inopt(star%isoftcore,'isoftcore'//trim(c),&
                      '0=no core softening, 1=cubic, 2=const. entropy',iunit)
-
+    call write_inopt(star%isinkcore,'isinkcore'//trim(c),&
+               'Add a sink particle stellar core',iunit)
     if (star%isoftcore > 0) then
        call write_inopt(star%input_profile,'input_profile'//trim(c),&
                         'Path to input profile',iunit)
@@ -630,8 +631,8 @@ subroutine write_options_star(star,iunit,label)
        call write_inopt(in_solarl(star%lcore),'lcore'//trim(c),&
                               'Luminosity of point mass stellar core [Lsun]',iunit)
     else
-       call write_inopt(star%isinkcore,'isinkcore'//trim(c),&
-               'Add a sink particle stellar core',iunit)
+       !call write_inopt(star%isinkcore,'isinkcore'//trim(c),&
+            !   'Add a sink particle stellar core',iunit)
        if (star%isinkcore) then
           call write_inopt(in_solarm(star%mcore),'mcore'//trim(c),&
                'Mass of sink particle stellar core',iunit)

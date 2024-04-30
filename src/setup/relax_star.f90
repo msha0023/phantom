@@ -176,7 +176,7 @@ subroutine relax_star(nt,rho,pr,r,npart,xyzh,use_var_comp,Xfrac,Yfrac,mu,ierr,np
  endif
  if (id==master) print "(/,3(a,1pg11.3),/,a,1pg11.3,a,i4)",&
    ' RELAX-A-STAR-O-MATIC: Etherm:',etherm,' Epot:',Epot, ' R*:',maxval(r), &
-   '       WILL stop when Ekin/Epot < ',tol_ekin,' OR Iter=',maxits
+   '       WILL stop when Ekin/Epot < ',tol_ekin,' OR Iter=',maxits,' Ekin is',ekin, "EKIN",Ekin
 
  if (write_files) then
     if (.not.restart) call write_fulldump(t,filename)

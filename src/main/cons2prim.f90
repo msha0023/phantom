@@ -144,10 +144,9 @@ subroutine cons2primall(npart,xyzh,metrics,pxyzu,vxyzu,dens,eos_vars)
        tempi   = eos_vars(itemp,i)
        gammai  = eos_vars(igamma,i)
        rhoi    = rhoh(xyzh(4,i),massoftype(igas))
-
+       ! x,metrici,v,dens,u,P,temp,gamma,rho,pmom,en,ierr,ien_type
        call conservative2primitive(xyzh(1:3,i),metrics(:,:,:,i),vxyzu(1:3,i),dens(i),vxyzu(4,i), &
                                   p_guess,tempi,gammai,rhoi,pxyzu(1:3,i),pxyzu(4,i),ierr,ien_type)
-
        ! store results
        eos_vars(igasP,i)  = p_guess
        eos_vars(ics,i)    = get_spsound(ieos,xyzh(1:3,i),dens(i),vxyzu(:,i),gammai)

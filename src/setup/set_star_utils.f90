@@ -334,7 +334,7 @@ subroutine set_stellar_core(nptmass,xyzmh_ptmass,vxyz_ptmass,ihsoft,mcore,&
  xyzmh_ptmass(ihsoft,n) = hsoft
  xyzmh_ptmass(ilum,n)   = lcore
  vxyz_ptmass(:,n)       = 0.
-
+ print*,nptmass,"nptmass in set_stellar_core"
 end subroutine set_stellar_core
 
 !-----------------------------------------------------------------------

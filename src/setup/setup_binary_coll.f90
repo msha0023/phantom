@@ -10,7 +10,6 @@ module setup
 !
 ! :References: None
 !
-! :Owner: David Liptai
 !
 ! :Runtime parameters:
 !   - beta          : *penetration factor*
@@ -32,7 +31,7 @@ module setup
  real    :: mhole,beta,ecc,norbits,theta
  integer :: dumpsperorbit
  type(star_t) :: star(2)
- real    :: a_binary,ecc_binary,inc_binary,O_binary,w_binary,f_binary,m_binary
+ real*8 :: x_pos1,y_pos1,z_pos1,vx_pos1,vy_pos1,vz_pos1,x_pos2,y_pos2,z_pos2,vx_pos2,vy_pos2,vz_pos2
  logical :: relax,corotate_binary
  logical :: provide_rp
  real    :: rp_outer
@@ -50,7 +49,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
                      gravity,eos_vars,rad,nsinkproperties
  use setbinary, only:set_binary
  use setstar,   only:set_star,shift_star
- use units,     only:set_units,umass,udist,unit_density
+ use units,     only:set_units,umass,udist,unit_density,unit_velocity
  use physcon,   only:solarm,pi,solarr
  use io,        only:master,fatal,warning
  use options,   only:iexternalforce
@@ -88,13 +87,6 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  polyk = 1.e-10    ! <== uconst
  gamma = 5./3.
  ieos  = 2
- a_binary    = 10.
- ecc_binary  = 0.
- inc_binary = 0.
- O_binary = 0.
- w_binary = 270.
- f_binary = 180.
- m_binary = 180.
  nptmass_in = 0
  iextern_prev = iexternalforce
  iexternalforce = 0
@@ -110,7 +102,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
 !
 !-- Default runtime parameters
 !
- mhole           = 1.e5  ! (solar masses)
+ mhole           = 1.e6  ! (solar masses)
  call set_units(mass=mhole*solarm,c=1.d0,G=1.d0) !--Set central mass to M=1 in code units
  print*,umass,"umass",1e6*solarm,"1e6*solarm"
  star%mstar      = 1.*solarm/umass
@@ -147,7 +139,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
 
  if (nstar == 1) then
          print*,"--------"
-         print*,"Setting single star and relaxing it",nptmass,"nptmass"
+         print*,"Setting single star and relaxing it"
  call set_star(id,master,star(1),xyzh,vxyzu,eos_vars,rad,npart,npartoftype,&
                massoftype,hfact,xyzmh_ptmass,vxyz_ptmass,nptmass,ieos,polyk,gamma,&
                X_in,Z_in,relax,use_var_comp,write_profile,&
@@ -167,127 +159,20 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
 
  endif
  if (ierr /= 0) call fatal('setup','errors in set_star')
- 
- ! 
- !--place binary stars around each other 
- !
- !--now setup orbit using fake sink particles
- !
- nptmass_in = 0
- if (nstar > 1) then
-    call set_binary(star(1)%mstar,star(2)%mstar,a_binary,ecc_binary,star(1)%hacc,star(2)%hacc,&
-                    xyzmh_ptmass_in,vxyz_ptmass_in,nptmass_in,ierr,&
-                    posang_ascnode=O_binary,arg_peri=w_binary,incl=inc_binary,f=f_binary,mean_anomaly=m_binary,verbose=(id==master))
-    add_spin = corotate_binary
- endif
- print*,size(xyzmh_ptmass_in),"size of xyzmh_ptmass_in"
- if (ierr /= 0) call fatal ('setup_binary','error in call to set_binary')
- !
- !--place star into orbit
- !
- rtidal          = star(1)%rstar*(mass1/star(1)%mstar)**(1./3.)
- rp = rtidal/beta 
- accradius1_hard = 5.*mass1
- accradius1      = accradius1_hard
- a               = 0.
- theta           = theta*pi/180.
 
- print*, 'mstar', star(1)%mstar
- print*, 'rstar', star(1)%rstar
- print*, 'umass', umass
- print*, 'udist', udist
- print*, 'mass1', mass1
- print*, 'tidal radius', rtidal
- print*, 'beta', beta
-
- xyzstar  = 0.
- vxyzstar = 0.
- period   = 0.
-
- if (ecc<1.) then
-    !
-    !-- Set a binary orbit given the desired orbital parameters to get the position and velocity of the star
-    !
-    semia    = rp/(1.-ecc)
-    period   = 2.*pi*sqrt(semia**3/mass1)
-    print*, 'period', period
-    hacc1    = star(1)%rstar/1.e8    ! Something small so that set_binary doesnt warn about Roche lobe
-    hacc2    = hacc1
-    ! apocentre = rp*(1.+ecc)/(1.-ecc)
-    ! trueanom = acos((rp*(1.+ecc)/r0 - 1.)/ecc)*180./pi
-    if (nstar == 1) then 
-       call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
-                    posang_ascnode=0.,arg_peri=90.,incl=0.,f=-180.)
-    else
-       call set_binary(mass1,star(1)%mstar,semia,ecc,hacc1,hacc2,xyzmh_ptmass,vxyz_ptmass,nptmass,ierr,&
-                    posang_ascnode=0.,arg_peri=90.,incl=0.,f=-180.)
-    endif
-    vxyzstar = vxyz_ptmass(1:3,2)
-    xyzstar  = xyzmh_ptmass(1:3,2)
-    nptmass  = 0
-
-    call rotatevec(xyzstar,(/0.,1.,0./),-theta)
-    call rotatevec(vxyzstar,(/0.,1.,0./),-theta)
-
- elseif (abs(ecc-1.) < tiny(0.)) then
-    !
-    !-- Setup a parabolic orbit
-    !
-    r0       = 10.*rtidal              ! A default starting distance from the black hole.
-    period   = 2.*pi*sqrt(r0**3/mass1) !period not defined for parabolic orbit, so just need some number
-    y0       = -2.*rp + r0
-    x0       = sqrt(r0**2 - y0**2)
-    xyzstar  = (/-x0,y0,0./)
-    vel      = sqrt(2.*mass1/r0)
-    vhat     = (/2.*rp,-x0,0./)/sqrt(4.*rp**2 + x0**2)
-    vxyzstar = vel*vhat
-
-    call rotatevec(xyzstar,(/0.,1.,0./),theta)
-    call rotatevec(vxyzstar,(/0.,1.,0./),theta)
-
- else
-    call fatal('setup','please choose a valid eccentricity (0<ecc<=1)',var='ecc',val=ecc)
- endif
-
- lorentz = 1./sqrt(1.-dot_product(vxyzstar,vxyzstar))
- if (lorentz>1.1) call warning('setup','Lorentz factor of star greater than 1.1, density may not be correct')
-
- tmax      = norbits*period
- dtmax     = period/dumpsperorbit
-
- if (id==master) then
-    print "(/,a)",       ' STAR SETUP:'
-    print "(a,3f10.3)"  ,'         Position = ',xyzstar
-    print "(a,3f10.3)"  ,'         Velocity = ',vxyzstar
-    print "(a,1f10.3)"  ,' Lorentz factor   = ',lorentz
-    print "(a,1f10.3)"  ,' Polytropic gamma = ',gamma
-    print "(a,3f10.3,/)",'       Pericentre = ',rp
- endif
- print*,nstar,"NSTAR"
- if (nstar > 1) then 
-    do i=1,nstar
-       call shift_star(npart,xyzh,vxyzu,x0=xyzmh_ptmass_in(1:3,i)+xyzstar,&
-                       v0=vxyz_ptmass_in(1:3,i)+vxyzstar,itype=i)
-    enddo
- else 
-    call shift_star(npart,xyzh,vxyzu,x0=xyzstar,v0=vxyzstar)
- endif 
-
- if (id==master) print "(/,a,i10,/)",' Number of particles setup = ',npart
-
- !
- ! set a few options for the input file
- !
- calc_gravitwaves = .true.
- if (abs(ecc-1.) > epsilon(0.)) then
-    theta_gw = theta*180./pi
- else
-    theta_gw = -theta*180./pi
- endif
-
- if (npart == 0)   call fatal('setup','no particles setup')
- if (ierr /= 0)    call fatal('setup','ERROR during setup')
-
+  ! use the pos and vel coordinates to shift the stars around the black hole
+  do i=1,nstar 
+     if (i == 1) then 
+         xyzstar = (/x_pos1,y_pos1,z_pos1/)
+         vxyzstar = (/vx_pos1,vy_pos1,vz_pos1/)
+     else
+         xyzstar = (/x_pos2,y_pos2,z_pos2/)
+         vxyzstar = (/vx_pos2,vy_pos2,vz_pos2/)
+     endif 
+     print*,xyzmh_ptmass(1:3,i)+xyzstar,"xyzmh_ptmass(1:3,i)+xyzstar Lets shift the star!"
+     call shift_star(npart,xyzh,vxyzu,x0=xyzmh_ptmass(1:3,i)+xyzstar,&
+                       v0=vxyz_ptmass(1:3,i)+vxyzstar,itype=i)
+  enddo 
 end subroutine setpart
 
 !
@@ -326,21 +211,21 @@ subroutine write_setupfile(filename)
         call write_options_relax(iunit)
      endif
 
-     call write_setupfile_binary(iunit)
  endif
  write(iunit,"(/,a)") '# options for black hole and orbit'
- call write_inopt(mhole,        'mhole',        'mass of black hole (solar mass)',iunit)
- call write_inopt(beta,         'beta',         'penetration factor',             iunit)
- call write_inopt(ecc,          'ecc',          'eccentricity (1 for parabolic)', iunit)
- call write_inopt(norbits,      'norbits',      'number of orbits',               iunit)
- call write_inopt(dumpsperorbit,'dumpsperorbit','number of dumps per orbit',      iunit)
- call write_inopt(theta,        'theta',        'inclination of orbit (degrees)', iunit)
- call write_inopt(provide_rp, 'provide_rp', 'true/false', iunit)
- 
- ! If the user wishes to usee the pericentre distance that they want to provide we read it and use it 
- if (provide_rp) then 
-      call write_inopt(rp_outer,        'rp_outer',        '(AU)', iunit)
- endif 
+ call write_inopt(mhole,        'mhole',        'mass of black hole (solar units)',iunit)
+ call write_inopt(x_pos1,        'x_pos1',        'x-coordinate of star 1',iunit)
+ call write_inopt(y_pos1,        'y_pos1',        'y-coordinate of star 1',iunit)
+ call write_inopt(z_pos1,        'z_pos1',        'z-coordinate of star 1',iunit)
+ call write_inopt(vx_pos1,        'vx_pos1',        'vx-coordinate of star 1',iunit)
+ call write_inopt(vy_pos1,        'vy_pos1',        'vy-coordinate of star 1',iunit)
+ call write_inopt(vz_pos1,        'vz_pos1',        'vz-coordinate of star 1',iunit)
+ call write_inopt(x_pos2,        'x_pos2',        'x-coordinate of star 2',iunit)
+ call write_inopt(y_pos2,        'y_pos2',        'y-coordinate of star 2',iunit)
+ call write_inopt(z_pos2,        'z_pos2',        'z-coordinate of star 2',iunit)
+ call write_inopt(vx_pos2,        'vx_pos2',        'vx-coordinate of star 2',iunit)
+ call write_inopt(vy_pos2,        'vy_pos2',        'vy-coordinate of star 2',iunit)
+ call write_inopt(vz_pos2,        'vz_pos2',        'vz-coordinate of star 2',iunit)
  close(iunit)
 
 end subroutine write_setupfile
@@ -351,14 +236,12 @@ subroutine read_setupfile(filename,ieos,polyk,mass1,ierr)
  use setstar,      only:read_options_star
  use relaxstar,    only:read_options_relax
  use physcon,      only:solarm,solarr
- use units,        only:set_units,umass
- 
+ use units,        only:set_units,umass,udist,unit_velocity
  character(len=*), intent(in)    :: filename
  integer,          intent(inout) :: ieos
  real,             intent(inout) :: polyk
  real,             intent(out)   :: mass1
  integer,          intent(out)   :: ierr
-
  integer, parameter :: iunit = 21
  integer :: nerr,need_iso
  type(inopts), allocatable :: db(:)
@@ -371,7 +254,7 @@ subroutine read_setupfile(filename,ieos,polyk,mass1,ierr)
  !--read black hole mass and use it to define code units
  !
  call read_inopt(mhole,'mhole',db,min=0.,errcount=nerr)
- !call set_units(mass=mhole*solarm,c=1.d0,G=1.d0) !--Set central mass to M=1 in code units
+ ! call set_units(mass=mhole*solarm,c=1.d0,G=1.d0) !--Set central mass to M=1 in code units
  mass1 = mhole*solarm/umass
  print*,"mass of BH for metric in code units = ", mass1
  !
@@ -392,27 +275,25 @@ subroutine read_setupfile(filename,ieos,polyk,mass1,ierr)
        call read_inopt(relax,'relax',db,errcount=nerr)
        call read_options_relax(db,nerr)
     endif
-    !call read_options_star(star(1),need_iso,ieos,polyk,db,nerr,label='1')
-    !call read_inopt(relax,'relax',db,errcount=nerr)
-    !if (relax) call read_options_relax(db,nerr)
-
-    !call read_options_star(star(2),need_iso,ieos,polyk,db,nerr,label='2')
-    !call read_inopt(relax,'relax',db,errcount=nerr)
-    !if (relax) call read_options_relax(db,nerr)
-    call read_setupfile_binary(ierr,db,iunit)
- endif
- call read_inopt(beta,           'beta',           db,min=0.,errcount=nerr)
- call read_inopt(ecc,            'ecc',            db,min=0.,max=1.,errcount=nerr)
- call read_inopt(norbits,        'norbits',        db,min=0.,errcount=nerr)
- call read_inopt(dumpsperorbit,  'dumpsperorbit',  db,min=0 ,errcount=nerr)
+ call read_inopt(x_pos1,            'x_pos1',           db,errcount=nerr)
+ call read_inopt(y_pos1,            'y_pos1',            db,errcount=nerr)
+ call read_inopt(z_pos1,            'z_pos1',        db,errcount=nerr)
+ call read_inopt(vx_pos1,            'vx_pos1',           db,errcount=nerr)
+ call read_inopt(vy_pos1,            'vy_pos1',            db,errcount=nerr)
+ call read_inopt(vz_pos1,        'vz_pos1',        db,errcount=nerr)
  
- call read_inopt(theta,          'theta',          db,       errcount=nerr)
- call read_inopt(provide_rp,          'provide_rp',          db,       errcount=nerr)
- if (provide_rp) then 
-      call read_inopt(rp_outer,           'rp_outer',           db,min=0.,errcount=nerr)
- endif
+ 
+ call read_inopt(x_pos2,            'x_pos2',           db,errcount=nerr)
+ call read_inopt(y_pos2,            'y_pos2',            db,errcount=nerr)
+ call read_inopt(z_pos2,            'z_pos2',        db,errcount=nerr)
+ call read_inopt(vx_pos2,            'vx_pos2',           db,errcount=nerr)
+ call read_inopt(vy_pos2,            'vy_pos2',            db,errcount=nerr)
+ call read_inopt(vz_pos2,        'vz_pos2',        db,errcount=nerr)
  call close_db(db)
-
+  
+ print*,x_pos1, y_pos1,z_pos1,"1st star's position"
+ print*,x_pos2,y_pos2,z_pos2,"2nd star's position" 
+ endif
  if (nerr > 0) then
     print "(1x,i2,a)",nerr,' error(s) during read of setup file: re-writing...'
     ierr = nerr
@@ -421,49 +302,6 @@ subroutine read_setupfile(filename,ieos,polyk,mass1,ierr)
 end subroutine read_setupfile
 
 
-!----------------------------------------------------------------
-!+
-!  write options for the binary orbit
-!+
-!----------------------------------------------------------------
-subroutine write_setupfile_binary(iunit)
- use infile_utils, only:write_inopt
- integer, intent(in) :: iunit
-
- write(iunit,"(/,a)") '# binary orbit settings'
- call write_inopt(a_binary,'a','semi-major axis (e.g. 1 au), period (e.g. 10*days) or rp if e=1',iunit)
- call write_inopt(ecc_binary,'ecc','eccentricity',iunit)
- call write_inopt(inc_binary,'inc','inclination (deg)',iunit)
- call write_inopt(O_binary,'O','position angle of ascending node (deg)',iunit)
- call write_inopt(w_binary,'w','argument of periapsis (deg)',iunit)
- call write_inopt(f_binary,'f','initial true anomaly (180=apoastron)',iunit)
- call write_inopt(m_binary,'M','initial mean anomaly (180=apocentre)',iunit)
- call write_inopt(corotate_binary,'corotate','set stars in corotation',iunit)
- 
-end subroutine write_setupfile_binary
-
-!----------------------------------------------------------------
-!+
-!  read options from .setup file
-!+
-!----------------------------------------------------------------
-subroutine read_setupfile_binary(ierr,db,iunit)
- use infile_utils, only:open_db_from_file,inopts,read_inopt,close_db
- use io,           only:error,fatal
- integer,          intent(inout) :: ierr
- integer, intent(in) :: iunit
- integer :: nerr,need_iso
- type(inopts), allocatable, intent(inout) :: db(:)
- call read_inopt(a_binary,'a',db,errcount=nerr)
- call read_inopt(ecc_binary,'ecc',db,min=0.,errcount=nerr)
- call read_inopt(inc_binary,'inc',db,errcount=nerr)
- call read_inopt(O_binary,'O',db,errcount=nerr)
- call read_inopt(w_binary,'w',db,errcount=nerr)
- call read_inopt(f_binary,'f',db,errcount=nerr)
- call read_inopt(m_binary,'M',db,errcount=nerr)
- call read_inopt(corotate_binary,'corotate',db,errcount=nerr)
-
-end subroutine read_setupfile_binary
 
 
 end module setup

@@ -103,14 +103,12 @@ subroutine primitive2conservative(x,metrici,v,dens,u,P,rho,pmom,en,ien_type)
  do i=1,3
     pmom(i) = U0*enth*dot_product(gcov(i,:),v4U(:))
  enddo
-
  gvv = 0.
  do mu=0,3
     do i=1,3
        gvv = gvv + gcov(i,mu)*v4U(mu)*v4U(i)
     enddo
  enddo
-
  if (ien_type == ien_etotal) then
     en = U0*enth*gvv + (1.+u)/U0
  elseif (ien_type == ien_entropy_s) then

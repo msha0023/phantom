@@ -48,6 +48,7 @@ end function dot_product_gr
 !-------------------------------------------------------------------------------
 
 pure subroutine get_u0(gcov,v,U0,ierr)
+!subroutine get_u0(gcov,v,U0,ierr)
 #ifdef FINVSQRT
  use fastmath, only:finvsqrt
 #endif
@@ -62,10 +63,18 @@ pure subroutine get_u0(gcov,v,U0,ierr)
  vv      = dot_product_gr(v4,v4,gcov)
 #ifdef FINVSQRT
  U0      = finvsqrt(-vv)
+
+ !if (U0 .ne. U0) then
+ !   print*,"a", vv, "vv"
+ !endif
 #else
  U0      = 1./sqrt(-vv)
+ !if (U0 .ne. U0) then
+  !  print*,"b", vv, "vv", v4, "v4",gcov,"gcov"
+ !endif
 #endif
  if (vv > 0.) ierr = 1
+
 
 end subroutine get_u0
 

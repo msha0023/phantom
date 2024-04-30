@@ -185,7 +185,6 @@ subroutine read_mesa(filepath,rho,r,pres,m,ene,temp,X_in,Z_in,Xfrac,Yfrac,Mstar,
  endif
 
  Mstar = m(lines)
-
 end subroutine read_mesa
 
 !----------------------------------------------------------------

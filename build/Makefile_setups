@@ -177,6 +177,28 @@ ifeq ($(SETUP), grtde)
     ANALYSIS= analysis_gws.f90
 endif
 
+ifeq ($(SETUP), grcollision)
+#   tidal disruption event in general relativity
+    SETUPFILE= setup_binary_coll.f90
+    GR=yes
+    METRIC=kerr
+    KNOWN_SETUP=yes
+    GRAVITY=yes
+    IND_TIMESTEPS=yes
+#    ANALYSIS=analysis_tde.f90
+    ANALYSIS= analysis_gws.f90
+endif
+
+ifeq ($(SETUP), newcollision)
+#   tidal disruption event in Newtonian physics
+    SETUPFILE= setup_binary_newton.f90
+    KNOWN_SETUP=yes
+    GRAVITY=yes
+    IND_TIMESTEPS=yes
+#    ANALYSIS=analysis_tde.f90
+    ANALYSIS= analysis_gws.f90
+endif
+
 ifeq ($(SETUP), radiotde)
 #   radio tidal disruption event in general relativity
     GR=yes
