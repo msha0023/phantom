@@ -110,7 +110,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
 !
 !-- Default runtime parameters
 !
- mhole           = 1.e5  ! (solar masses)
+ mhole           = 1.e6  ! (solar masses)
  call set_units(mass=mhole*solarm,c=1.d0,G=1.d0) !--Set central mass to M=1 in code units
  print*,umass,"umass",1e6*solarm,"1e6*solarm"
  star%mstar      = 1.*solarm/umass
