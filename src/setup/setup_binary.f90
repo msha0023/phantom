@@ -133,6 +133,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,&
  iextern_prev = iexternalforce
  iexternalforce = 0
  gamma = 5./3.
+ print*,star(i)%iprofile,"star(i)%iprofile"
  do i=1,nstar
     if (star(i)%iprofile > 0) then
        print "(/,a,i0,a)",' --- STAR ',i,' ---'
@@ -157,16 +158,22 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,&
  !
  nptmass_in = 0
  if (iexternalforce==iext_corotate) then
+    print*,"SET BINARY IS CALLED IN if"
     call set_binary(star(1)%mstar,star(2)%mstar,a,ecc,star(1)%hacc,star(2)%hacc,&
                     xyzmh_ptmass_in,vxyz_ptmass_in,nptmass_in,ierr,omega_corotate,&
                     posang_ascnode=O,arg_peri=w,incl=inc,f=f,verbose=(id==master))
     add_spin = .false.  ! already in corotating frame
  else
+    print*,"SET BINARY IS CALLED in else",star(2)%mstar,"star(2)%mstar",star(1)%hacc,"star(1)%hacc",a,"a"
     call set_binary(star(1)%mstar,star(2)%mstar,a,ecc,star(1)%hacc,star(2)%hacc,&
                     xyzmh_ptmass_in,vxyz_ptmass_in,nptmass_in,ierr,&
                     posang_ascnode=O,arg_peri=w,incl=inc,f=f,verbose=(id==master))
     add_spin = corotate
+ 
+    print*,xyzmh_ptmass_in,"xyzmh_ptmass_in"
  endif
+ print*,xyzmh_ptmass_in,"xyzmh_ptmass_in(1)"
+ print*,vxyz_ptmass_in,"vxyz_ptmass_in"
  if (ierr /= 0) call fatal ('setup_binary','error in call to set_binary')
  !
  !--place stars into orbit, or add real sink particles if iprofile=0
@@ -176,9 +183,12 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,&
        call shift_star(npart,xyzh,vxyzu,x0=xyzmh_ptmass_in(1:3,i),&
                        v0=vxyz_ptmass_in(1:3,i),itype=i,corotate=add_spin)
     else
+       print*,"adding a sink??"," i:",i
        nptmass = nptmass + 1
+       print*,xyzmh_ptmass(:,nptmass),"before xyzmh_ptmass(:,nptmass)"
        xyzmh_ptmass(:,nptmass) = xyzmh_ptmass_in(:,i)
        vxyz_ptmass(:,nptmass) = vxyz_ptmass_in(:,i)
+       print*, xyzmh_ptmass(:,nptmass)," xyzmh_ptmass(:,nptmass"
     endif
  enddo
  !
@@ -189,6 +199,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,&
  call reset_centreofmass(npart,xyzh,vxyzu,nptmass,xyzmh_ptmass,vxyz_ptmass)
 
  if (iexternalforce==iext_geopot .or. iexternalforce==iext_star) then
+    print*,"restory if "
     ! delete first sink particle and copy its properties to the central potential
     nptmass = nptmass - 1
     mass1 = xyzmh_ptmass(4,nptmass+1)
@@ -196,6 +207,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,&
     xyzmh_ptmass(:,nptmass) = xyzmh_ptmass(:,nptmass+1)
     vxyz_ptmass(:,nptmass) = vxyz_ptmass(:,nptmass+1)
  elseif (set_oblateness) then
+    print*,"restoring elseif"
     ! set J2 for sink particle 1 to be equal to oblateness of Saturn
     xyzmh_ptmass(iJ2,1) = 0.01629
     angle = 30.*deg_to_rad

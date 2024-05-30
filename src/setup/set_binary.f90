@@ -160,7 +160,8 @@ subroutine set_binary(m1,m2,semimajoraxis,eccentricity, &
 
  Rochelobe1 = Rochelobe_estimate(m2,m1,rperi)
  Rochelobe2 = Rochelobe_estimate(m1,m2,rperi)
-
+ print*,"----------------------------------------------"
+ print*,Rochelobe1,"Rochelobe1",Rochelobe2,"Rochelobe2",m2,m2,rperi
  if (do_verbose) then
     print "(/,2x,a)",'---------- binary parameters ----------- '
     print "(8(2x,a,1pg14.6,/),2x,a,1pg14.6)", &
@@ -223,6 +224,7 @@ subroutine set_binary(m1,m2,semimajoraxis,eccentricity, &
        E_dot = sqrt((m1 + m2)/(a**3))/(1.-ecc*cos(E))
        term3 = a*(-sin(E)*E_dot)
        term4 = a*(sqrt(1.- ecc*ecc)*cos(E)*E_dot)
+       print*,term1,"term1",term2,"term2"
     elseif (eccentricity > 1.) then ! hyperbolic
        orbit_type = 'Hyperbolic'
        term1 = a*(cosh(E)-ecc)
@@ -268,7 +270,7 @@ subroutine set_binary(m1,m2,semimajoraxis,eccentricity, &
  ! positions of each star so centre of mass is at zero
  x1 = -dx*m2/mtot
  x2 =  dx*m1/mtot
-
+ print*,x1,"x1",x2,"x2"
  ! velocities
  v1 = -dv*m2/mtot
  v2 =  dv*m1/mtot
@@ -362,6 +364,8 @@ real function Rochelobe_estimate(m1,m2,sep)
     q13 = q**(1./3.)
     q23 = q13*q13
     Rochelobe_estimate = sep * 0.49*q23/(0.6*q23 + log(1. + q13))
+    print*,q,"q",q13,"q13",q23,"q23",Rochelobe_estimate,"Rochelobe_estimate"
+    print*,sep * 0.49*q23,"sep * 0.49*q23",(0.6*q23 + log(1. + q13)),"(0.6*q23 + log(1. + q13))"
  else
     Rochelobe_estimate = sep
  endif

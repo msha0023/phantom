@@ -626,7 +626,7 @@ subroutine write_options_externalforces(iunit,iexternalforce)
 
  call get_optstring(iexternalforce_max,externalforcetype,string,4)
  call write_inopt(iexternalforce,'iexternalforce',trim(string),iunit)
-
+ print*,mass1,"mass1 in external forces"
  select case(iexternalforce)
  case(iext_star,iext_prdrag,iext_lensethirring,iext_einsteinprec,iext_gnewton,iext_geopot)
     call write_inopt(mass1,'mass1','mass of central object in code units',iunit)
@@ -762,6 +762,7 @@ subroutine read_options_externalforces(name,valstring,imatch,igotall,ierr,iexter
     read(valstring,*,iostat=ierr) mass1
     if (mass1 < 0)           call fatal(tag,'mass of central object cannot be -ve')
     if (mass1 < tiny(mass1)) call warn(tag,'mass of central object is zero')
+    print*,"read mass of central object",mass1,"mass1"
     ngot = ngot + 1
  case('accradius1')
     read(valstring,*,iostat=ierr) accradius1

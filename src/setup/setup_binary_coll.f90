@@ -62,6 +62,8 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  use vectorutils,    only:rotatevec
  use gravwaveutils,  only:theta_gw,calc_gravitwaves
  use setup_params,   only:rhozero,npart_total
+ use dim,            only:gr
+
  integer,           intent(in)    :: id
  integer,           intent(inout) :: npart
  integer,           intent(out)   :: npartoftype(:)
@@ -173,6 +175,9 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
      call shift_star(npart,xyzh,vxyzu,x0=xyzmh_ptmass(1:3,i)+xyzstar,&
                        v0=vxyz_ptmass(1:3,i)+vxyzstar,itype=i)
   enddo 
+
+
+print*,"-------GR USED?--------",gr
 end subroutine setpart
 
 !
@@ -184,7 +189,6 @@ subroutine write_setupfile(filename)
  use relaxstar,    only:write_options_relax
  character(len=*), intent(in) :: filename
  integer :: iunit
-
  print "(a)",' writing setup options file '//trim(filename)
  open(newunit=iunit,file=filename,status='replace',form='formatted')
  write(iunit,"(a)") '# input file for tidal disruption setup'

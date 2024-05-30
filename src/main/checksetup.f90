@@ -586,6 +586,7 @@ subroutine check_setup_ptmass(nerror,nwarn,hmin)
     if (xyzmh_ptmass(4,i) < 0.) cycle
     hsoft = xyzmh_ptmass(ihsoft,i)
     hsink = max(xyzmh_ptmass(ihacc,i),hsoft)
+    print*,hsoft,"xyzmh_ptmass(ihsoft,i)",hsink,"max(xyzmh_ptmass(ihacc,i),hsoft"
     if (hsink <= 0.) then
        nerror = nerror + 1
        print*,'ERROR: sink ',i,' has accretion radius ',xyzmh_ptmass(ihacc,i),&

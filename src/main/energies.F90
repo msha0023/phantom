@@ -603,7 +603,7 @@ subroutine compute_energies(t)
  if (nptmass > 1) epot = epot + epot_sinksink
 
  etot = ekin + etherm + emag + epot + erad
-
+ print*,etot,"etot"
  xcom = reduceall_mpi('+',xcom)
  ycom = reduceall_mpi('+',ycom)
  zcom = reduceall_mpi('+',zcom)

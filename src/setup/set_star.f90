@@ -151,6 +151,7 @@ subroutine set_star(id,master,star,xyzh,vxyzu,eos_vars,rad,&
  ! do nothing if iprofile is invalid or zero (sink particle)
  !
  if (star%iprofile <= 0) then
+    print*,"iprofile is 0"
     ierr = 1
     return
  endif
@@ -188,7 +189,7 @@ subroutine set_star(id,master,star,xyzh,vxyzu,eos_vars,rad,&
  if (gr) then
     if (star%rstar < 6.*star%mstar) call fatal('set_star','R < 6GM/c^2 for star in GR violates weak field assumption')
  endif
- print*,nptmass,"nptmass A"
+ print*,nptmass,"nptmass A",star%hsoft,"star%hsoft"
  !
  ! add sink particle stellar core
  !
@@ -739,6 +740,7 @@ subroutine read_options_star(star,need_iso,ieos,polyk,db,nerr,label)
     call read_inopt(star%ui_coef,'ui_coef'//trim(c),db,errcount=nerr,min=0.)
  case(:0)
     call read_inopt(star%hacc,'hacc'//trim(c),db,errcount=nerr,min=0.)
+    !star%hacc = star%hacc*real(solarr/udist)
  end select
 
  ! star properties

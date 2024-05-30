@@ -66,7 +66,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  use dim,            only:gr
  use prompting,      only:prompt
  use physcon,        only:pi,solarm,solarr
- use units,          only:umass,udist,get_c_code
+ use units,          only:umass,udist,get_c_code,unit_velocity
  use metric,         only:a
  use orbits_data,    only:isco_kerr
  use vectorutils,    only:rotatevec
@@ -337,7 +337,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  else
     write(*,'(a)') "Use Binary BH = False"
  endif
-
+print*,udist,"udist",unit_velocity,"unit_velocity"
 
  write(*,'(a)') "======================================================================"
 
