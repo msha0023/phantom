@@ -22,8 +22,9 @@ module setup
 !   - theta         : *inclination of orbit (degrees)*
 !
 ! :Dependencies: eos, externalforces, gravwaveutils, infile_utils, io,
-!   kernel, metric, mpidomain, part, physcon, relaxstar, setbinary,
-!   setstar, setup_params, timestep, units, vectorutils
+!   kernel, metric, mpidomain, options, part, physcon, relaxstar,
+!   setbinary, setstar, setup_params, systemutils, timestep, units,
+!   vectorutils
 !
  use setstar, only:star_t
  implicit none
@@ -69,6 +70,8 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  use setup_params,   only:rhozero,npart_total
  use centreofmass,   only:reset_centreofmass
  use dim,            only:gr
+ use systemutils,    only:get_command_option
+ use options,        only:iexternalforce
  integer,           intent(in)    :: id
  integer,           intent(inout) :: npart
  integer,           intent(out)   :: npartoftype(:)
@@ -79,7 +82,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  character(len=20), intent(in)    :: fileprefix
  real,              intent(out)   :: vxyzu(:,:)
  character(len=120) :: filename
- integer :: ierr,nptmass_in,iextern_prev,i
+ integer :: ierr,nptmass_in,iextern_prev,i,np_default
  logical :: iexist,write_profile,use_var_comp,add_spin
  real    :: rtidal,rp,semia,period,hacc1,hacc2
  real    :: vxyzstar(3),xyzstar(3)
@@ -117,7 +120,8 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  endif
  star%mstar      = 1.*solarm/umass
  star%rstar      = 1.*solarr/udist
- star%np         = 1e6
+ np_default      = 1e6
+ star%np         = int(get_command_option('np',default=np_default)) ! can set default value with --np=1e5 flag (mainly for testsuite)
  star%iprofile   = 2
  print*,udist,"udist",umass,"umass after setting the units"
  a_binary        = 10.*solarr/udist
@@ -134,7 +138,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  theta           = 0.
  write_profile   = .false.
  use_var_comp    = .false.
- relax           = .false.
+ relax           = .true.
  use_set_binary  = .false.
  use_MC_code     = .false.
 !
@@ -371,7 +375,9 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     theta_gw = -theta*180./pi
  endif
 
- !if (npart == 0)   call fatal('setup','no particles setup')
+ if (.not.gr) iexternalforce = 1
+
+ if (npart == 0)   call fatal('setup','no particles setup')
  if (ierr /= 0)    call fatal('setup','ERROR during setup')
 
 end subroutine setpart

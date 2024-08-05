@@ -34,7 +34,6 @@ module readwrite_infile
 !   - dtwallmax          : *maximum wall time between dumps (hhh:mm, 000:00=ignore)*
 !   - dumpfile           : *dump file to start from*
 !   - flux_limiter       : *limit radiation flux*
-!   - hdivbbmax_max      : *max factor to decrease cleaning timestep propto B/(h|divB|)*
 !   - hfact              : *h in units of particle spacing [h = hfact(m/rho)^(1/3)]*
 !   - ien_type           : *energy variable (0=auto, 1=entropy, 2=energy, 3=entropy_s)*
 !   - implicit_radiation : *use implicit integration (Whitehouse, Bate & Monaghan 2005)*
@@ -66,17 +65,17 @@ module readwrite_infile
 !   - use_mcfost         : *use the mcfost library*
 !   - xtol               : *tolerance on xyz iterations*
 !
-! :Dependencies: boundary_dyn, cooling, damping, dim, dust, dust_formation,
-!   eos, externalforces, forcing, gravwaveutils, growth, infile_utils,
-!   inject, io, linklist, metric, nicil_sup, options, part, porosity,
-!   ptmass, ptmass_radiation, radiation_implicit, radiation_utils,
-!   timestep, viscosity
+! :Dependencies: HIIRegion, boundary_dyn, cooling, damping, dim, dust,
+!   dust_formation, eos, externalforces, forcing, gravwaveutils, growth,
+!   infile_utils, inject, io, linklist, metric, nicil_sup, options, part,
+!   porosity, ptmass, ptmass_radiation, radiation_implicit,
+!   radiation_utils, timestep, viscosity
 !
  use timestep,  only:dtmax_dratio,dtmax_max,dtmax_min
  use options,   only:nfulldump,nmaxdumps,twallmax,iexternalforce,tolh, &
                      alpha,alphau,alphaB,beta,avdecayconst,damp,rkill, &
                      ipdv_heating,ishock_heating,iresistive_heating,ireconav, &
-                     icooling,psidecayfac,overcleanfac,hdivbbmax_max,alphamax,calc_erot,rhofinal_cgs, &
+                     icooling,psidecayfac,overcleanfac,alphamax,calc_erot,rhofinal_cgs, &
                      use_mcfost,use_Voronoi_limits_file,Voronoi_limits_file,use_mcfost_stellar_parameters,&
                      exchange_radiation_energy,limit_radiation_flux,iopacity_type,mcfost_computes_Lacc,&
                      mcfost_uses_PdV,implicit_radiation,mcfost_keep_part,ISM, mcfost_dust_subl
@@ -109,7 +108,7 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
  use growth,          only:write_options_growth
  use porosity,        only:write_options_porosity
 #ifdef INJECT_PARTICLES
- use inject,          only:write_options_inject
+ use inject,          only:write_options_inject,inject_type,update_injected_par
 #endif
  use dust_formation,  only:write_options_dust_formation
  use nicil_sup,       only:write_options_nicil
@@ -124,6 +123,7 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
  use dim,                only:maxvxyzu,maxptmass,gravity,sink_radiation,gr,nalpha
  use part,               only:maxp,mhd,maxalpha,nptmass
  use boundary_dyn,       only:write_options_boundary
+ use HIIRegion,          only:write_options_H2R
  character(len=*), intent(in) :: infile,logfile,evfile,dumpfile
  integer,          intent(in) :: iwritein,iprint
  integer                      :: ierr
@@ -202,7 +202,6 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
     call write_inopt(alphaB,'alphaB','shock resistivity parameter',iwritein)
     call write_inopt(psidecayfac,'psidecayfac','div B diffusion parameter',iwritein)
     call write_inopt(overcleanfac,'overcleanfac','factor to increase cleaning speed (decreases time step)',iwritein)
-    call write_inopt(hdivbbmax_max,'hdivbbmax_max','max factor to decrease cleaning timestep propto B/(h|divB|)',iwritein)
  endif
  call write_inopt(beta,'beta','beta viscosity',iwritein)
  if (maxalpha==maxp .and. maxp > 0) then
@@ -217,7 +216,8 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
  ! thermodynamics
  !
  call write_options_eos(iwritein)
- if (maxvxyzu >= 4 .and. (ieos==2 .or. ieos==5 .or. ieos==10 .or. ieos==15 .or. ieos==12 .or. ieos==16) ) then
+ if (maxvxyzu >= 4 .and. (ieos==2 .or. ieos==5 .or. ieos==10 .or. ieos==15 .or. &
+     ieos==12 .or. ieos==16 .or. ieos==17 .or. ieos==22) ) then
     call write_inopt(ipdv_heating,'ipdv_heating','heating from PdV work (0=off, 1=on)',iwritein)
     call write_inopt(ishock_heating,'ishock_heating','shock heating (0=off, 1=on)',iwritein)
     if (mhd) then
@@ -271,6 +271,7 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
  write(iwritein,"(/,a)") '# options for injecting/removing particles'
 #ifdef INJECT_PARTICLES
  call write_options_inject(iwritein)
+ if (inject_type=='sim') call update_injected_par()
 #endif
  call write_inopt(rkill,'rkill','deactivate particles outside this radius (<0 is off)',iwritein)
 
@@ -304,6 +305,7 @@ subroutine write_infile(infile,logfile,evfile,dumpfile,iwritein,iprint)
  if (gr) call write_options_metric(iwritein)
  call write_options_gravitationalwaves(iwritein)
  call write_options_boundary(iwritein)
+ call write_options_H2R(iwritein)
 
  if (iwritein /= iprint) close(unit=iwritein)
  if (iwritein /= iprint) write(iprint,"(/,a)") ' input file '//trim(infile)//' written successfully.'
@@ -347,6 +349,7 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
  use damping,         only:read_options_damping
  use gravwaveutils,   only:read_options_gravitationalwaves
  use boundary_dyn,    only:read_options_boundary
+ use HIIRegion,       only:read_options_H2R
  character(len=*), parameter   :: label = 'read_infile'
  character(len=*), intent(in)  :: infile
  character(len=*), intent(out) :: logfile,evfile,dumpfile
@@ -359,7 +362,7 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
  logical :: imatch,igotallrequired,igotallturb,igotalllink,igotloops
  logical :: igotallbowen,igotallcooling,igotalldust,igotallextern,igotallinject,igotallgrowth,igotallporosity
  logical :: igotallionise,igotallnonideal,igotalleos,igotallptmass,igotalldamping
- logical :: igotallprad,igotalldustform,igotallgw,igotallgr,igotallbdy
+ logical :: igotallprad,igotalldustform,igotallgw,igotallgr,igotallbdy,igotallH2R
  integer, parameter :: nrequired = 1
 
  ireaderr = 0
@@ -391,6 +394,7 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
  igotallgw       = .true.
  igotallgr       = .true.
  igotallbdy      = .true.
+ igotallH2R      = .true.
  use_Voronoi_limits_file = .false.
 
  open(unit=ireadin,err=999,file=infile,status='old',form='formatted')
@@ -481,8 +485,6 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
        read(valstring,*,iostat=ierr) psidecayfac
     case('overcleanfac')
        read(valstring,*,iostat=ierr) overcleanfac
-    case('hdivbbmax_max')
-       read(valstring,*,iostat=ierr) hdivbbmax_max
     case('beta')
        read(valstring,*,iostat=ierr) beta
     case('ireconav')
@@ -572,6 +574,7 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
        endif
        if (.not.imatch) call read_options_gravitationalwaves(name,valstring,imatch,igotallgw,ierr)
        if (.not.imatch) call read_options_boundary(name,valstring,imatch,igotallbdy,ierr)
+       if (.not.imatch) call read_options_H2R(name,valstring,imatch,igotallH2R,ierr)
        if (len_trim(name) /= 0 .and. .not.imatch) then
           call warn('read_infile','unknown variable '//trim(adjustl(name))// &
                      ' in input file, value = '//trim(adjustl(valstring)))
@@ -684,23 +687,21 @@ subroutine read_infile(infile,logfile,evfile,dumpfile)
        if (psidecayfac < 0.) call fatal(label,'stupid value for psidecayfac')
        if (psidecayfac > 2.) call warn(label,'psidecayfac set outside recommended range (0.1-2.0)')
        if (overcleanfac < 1.0) call warn(label,'overcleanfac less than 1')
-       if (hdivbbmax_max < overcleanfac) then
-          call warn(label,'Resetting hdivbbmax_max = overcleanfac')
-          hdivbbmax_max = overcleanfac
-       endif
     endif
     if (beta < 0.)     call fatal(label,'beta < 0')
     if (beta > 4.)     call warn(label,'very high beta viscosity set')
 #ifndef MCFOST
     if (maxvxyzu >= 4 .and. (ieos /= 2 .and. ieos /= 5  .and. ieos /= 4  .and. ieos /= 10 .and. &
-             ieos /=11 .and. ieos /=12 .and. ieos /= 15 .and. ieos /= 16 .and. ieos /= 20)) &
+             ieos /=11 .and. ieos /=12 .and. ieos /= 15 .and. ieos /= 16 .and. ieos /= 17 .and. &
+             ieos /= 20 .and. ieos/=22)) &
        call fatal(label,'only ieos=2 makes sense if storing thermal energy')
 #endif
     if (irealvisc < 0 .or. irealvisc > 12)  call fatal(label,'invalid setting for physical viscosity')
     if (shearparam < 0.)                     call fatal(label,'stupid value for shear parameter (< 0)')
     if (irealvisc==2 .and. shearparam > 1) call error(label,'alpha > 1 for shakura-sunyaev viscosity')
     if (iverbose > 99 .or. iverbose < -9)   call fatal(label,'invalid verboseness setting (two digits only)')
-    if (icooling > 0 .and. .not.(ieos == 2 .or. ieos == 5)) call fatal(label,'cooling requires adiabatic eos (ieos=2)')
+    if (icooling > 0 .and. .not.(ieos == 2 .or. ieos == 5 .or. ieos == 17 .or. ieos==22)) &
+         call fatal(label,'cooling requires adiabatic eos (ieos=2)')
     if (icooling > 0 .and. (ipdv_heating <= 0 .or. ishock_heating <= 0)) &
          call fatal(label,'cooling requires shock and work contributions')
     if (((isink_radiation == 1 .or. isink_radiation == 3 ) .and. idust_opacity == 0 ) &
