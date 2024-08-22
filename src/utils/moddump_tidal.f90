@@ -119,7 +119,8 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
  use_binary_stars = .false.
  use_geodesic = .false.
  iorigin = 0
-
+ rt = (m0/ms)**(1./3.) * rs
+ r0 = 10*rt
  filename = 'tde'//'.tdeparams'                                ! moddump should really know about the output file prefix...
  inquire(file=filename,exist=iexist)
  if (iexist) call read_setupfile(filename,ierr)
@@ -131,6 +132,7 @@ subroutine modify_dump(npart,npartoftype,massoftype,xyzh,vxyzu)
 
  rt = (m0/ms)**(1./3.) * rs
  rp = rt/beta
+ r0 = 10*rt
  print*, rp,"pericentre of this orbit"
  if (abs(ecc-1.) < tiny(1.) .and. use_geodesic) then   
     filename2 = 'orbit'//'.tdeparams'                                ! moddump should really know about the output file prefix...
