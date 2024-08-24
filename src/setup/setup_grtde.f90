@@ -79,7 +79,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
  character(len=20), intent(in)    :: fileprefix
  real,              intent(out)   :: vxyzu(:,:)
  character(len=120) :: filename
- integer :: ierr,np_default
+ integer :: ierr,np_default,i
  logical :: iexist,write_profile,use_var_comp
  real    :: rtidal,rp,semia,period,hacc1,hacc2
  real    :: vxyzstar(3),xyzstar(3)
@@ -143,9 +143,7 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
                massoftype,hfact,xyzmh_ptmass,vxyz_ptmass,nptmass,ieos,polyk,gamma,&
                X_in,Z_in,relax,use_var_comp,write_profile,&
                rhozero,npart_total,i_belong,ierr)
-
  if (ierr /= 0) call fatal('setup','errors in set_star')
-
  !
  !--place star into orbit
  !
@@ -229,9 +227,20 @@ subroutine setpart(id,npart,npartoftype,xyzh,massoftype,vxyzu,polyk,gamma,hfact,
     print "(a,1f10.3)"  ,' Polytropic gamma = ',gamma
     print "(a,3f10.3,/)",'       Pericentre = ',rp
  endif
-
  call shift_star(npart,xyzh,vxyzu,x0=xyzstar,v0=vxyzstar)
-
+ print*,"shifted npart"
+ read*
+ if (nptmass .ne. 0) then
+         print*,"shifting nptmass"
+     do i = 1,nptmass
+        print*, i, "i", nptmass, "nptmass"
+        print*, xyzmh_ptmass(1:3,i), " xyzmh_ptmass(1:3,i)"
+        print*,xyzstar,"xyzstar"
+        xyzmh_ptmass(1:3,i) = xyzstar + xyzmh_ptmass(1:3,i)
+        vxyz_ptmass(1:3,i) = vxyzstar + vxyz_ptmass(1:3,i)
+     enddo 
+ endif
+ 
  if (id==master) print "(/,a,i10,/)",' Number of particles setup = ',npart
 
  !
