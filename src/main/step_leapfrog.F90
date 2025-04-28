@@ -129,7 +129,7 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
  use cons2primsolver, only:conservative2primitive,primitive2conservative
  use eos,             only:equationofstate
  use substepping,     only:substep,substep_gr, &
-                           substep_sph_gr,substep_sph,combine_forces_gr
+                           substep_sph_gr,substep_sph
  use ptmass,         only:get_accel_sink_sink,get_accel_sink_gas,ptmass_kick
 
  integer, intent(inout) :: npart
@@ -278,7 +278,7 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
        do i=1,nptmass
           fxyz_ptmass(1:3,i) = fxyz_ptmass(1:3,i) + fxyz_ptmass_sinksink(1:3,i)
        enddo
-       do i=1,npart
+       do i=1,npart     
           call get_accel_sink_gas(nptmass,xyzh(1,i),xyzh(2,i),xyzh(3,i),xyzh(4,i),xyzmh_ptmass, &
                                   fext(1,i),fext(2,i),fext(3,i),poti,pmassi,fxyz_ptmass,&
                                   dsdt_ptmass,fonrmax,dtphi2,bin_info)
@@ -288,7 +288,6 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
 
     if ((iexternalforce > 0 .and. imetric /= imet_minkowski) .or. idamp > 0 .or. nptmass > 0 .or. &
         (nptmass > 0 .and. imetric == imet_minkowski)) then
-  
        call substep_gr(npart,nptmass,ntypes,dtsph,dtextforce,xyzh,vxyzu,pxyzu,dens,metrics,metricderivs,fext,t,&
                        xyzmh_ptmass,vxyz_ptmass,pxyzu_ptmass,metrics_ptmass,metricderivs_ptmass,fxyz_ptmass)
     else
@@ -446,7 +445,8 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
     call derivs(1,npart,nactive,xyzh,vpred,fxyzu,fext,divcurlv,&
                 divcurlB,Bpred,dBevol,radpred,drad,radprop,dustproppred,ddustprop,&
                 dustpred,ddustevol,filfacpred,dustfrac,eos_vars,timei,dtsph,dtnew,&
-                ppred,dens,metrics,apr_level)
+                ppred,dens,metrics,apr_level,nptmass,xyzmh_ptmass,vxyz_ptmass,fxyz_ptmass,&
+                pxyzu_ptmass,metrics_ptmass)
     if (do_radiation .and. implicit_radiation) then
        rad = radpred
        vxyzu(4,1:npart) = vpred(4,1:npart)
@@ -755,7 +755,9 @@ subroutine step(npart,nactive,t,dtsph,dtextforce,dtnew)
        if (gr) vpred = vxyzu ! Need primitive utherm as a guess in cons2prim
        call derivs(2,npart,nactive,xyzh,vpred,fxyzu,fext,divcurlv,divcurlB, &
                      Bpred,dBevol,radpred,drad,radprop,dustproppred,ddustprop,dustpred,ddustevol,filfacpred,&
-                     dustfrac,eos_vars,timei,dtsph,dtnew,ppred,dens,metrics,apr_level)
+                     dustfrac,eos_vars,timei,dtsph,dtnew,ppred,dens,metrics,apr_level,&
+                     nptmass,xyzmh_ptmass,vxyz_ptmass,fxyz_ptmass,&
+                     pxyzu_ptmass,metrics_ptmass)
        if (gr) vxyzu = vpred ! May need primitive variables elsewhere?
        if (do_radiation .and. implicit_radiation) then
           rad = radpred

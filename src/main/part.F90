@@ -352,6 +352,7 @@ module part
  real, allocatable         :: dBevol(:,:)
  real(kind=4), allocatable :: divBsymm(:)
  real, allocatable         :: fext(:,:)
+ real, allocatable         :: fext_old(:,:)
  real, allocatable         :: ddustevol(:,:)
  real, allocatable         :: ddustprop(:,:) !--grainmass is the only prop that evolves for now
  real, allocatable         :: drad(:,:)
@@ -425,17 +426,17 @@ module part
  integer, parameter :: istar       = 4
  integer, parameter :: idarkmatter = 5
  integer, parameter :: ibulge      = 6
- integer, parameter :: isink       = 7 ! if sink is in tree...
- integer, parameter :: idust       = 8
+ integer, parameter :: idust       = 7
  integer, parameter :: idustlast   = idust + maxdustlarge - 1
  integer, parameter :: idustbound  = idustlast + 1
  integer, parameter :: idustboundl = idustbound + maxdustlarge - 1
  integer, parameter :: iunknown    = 0
+ integer, parameter :: isink       = 0 ! if sink is in tree...
  logical            :: set_boundaries_to_active = .true.
  integer :: i
  character(len=7), dimension(maxtypes), parameter :: &
    labeltype = (/'gas    ','empty  ','bound  ','star   ','darkm  ','bulge  ', &
-                 'sink   ',('dust   ', i=idust,idustlast),&
+                 ('dust   ', i=idust,idustlast),&
                  ('dustbnd',i=idustbound,idustboundl)/)
 !
 !--generic interfaces for routines
@@ -510,6 +511,7 @@ subroutine allocate_part
  call allocate_array('dBevol', dBevol, maxBevol, maxmhdan)
  call allocate_array('divBsymm', divBsymm, maxmhdan)
  call allocate_array('fext', fext, 3, maxan)
+ call allocate_array('fext_old', fext_old, 3, maxan)
  call allocate_array('vpred', vpred, maxvxyzu, maxan)
  call allocate_array('ppred', ppred, maxvxyzu, maxgran)
  call allocate_array('dustpred', dustpred, maxdustsmall, maxdustan)
@@ -609,6 +611,7 @@ subroutine deallocate_part
  if (allocated(dBevol))       deallocate(dBevol)
  if (allocated(divBsymm))     deallocate(divBsymm)
  if (allocated(fext))         deallocate(fext)
+ if (allocated(fext_old))     deallocate(fext_old)
  if (allocated(vpred))        deallocate(vpred)
  if (allocated(ppred))        deallocate(ppred)
  if (allocated(dustpred))     deallocate(dustpred)
@@ -1027,7 +1030,7 @@ pure subroutine get_partinfo(iphasei,isactive,isgas,isdust,itype)
 ! isdust = itype==idust
 
 !--inline versions of above (for speed)
- if (iphasei > 0) then
+ if (iphasei >= 0) then
     isactive = .true.
     itype    = iphasei
  else
